@@ -305,16 +305,47 @@ function groupTable(g,score){
   return Object.values(st).sort((x,y)=>y.pts-x.pts||y.gd-x.gd||y.gf-x.gf||x.team.localeCompare(y.team,'fr'));
 }
 function groupComplete(g,score){return GROUP_MATCHES[g].every(m=>!!score(m.num));}
-// onlyComplete=true : ne qualifie que depuis les groupes terminés (résultats réels)
+// Équipes mathématiquement assurées du top 2 d'un groupe (qualifiées d'office),
+// même si la poule n'est pas finie. On simule tous les résultats restants (V/N/D)
+// et, au pire cas (égalité de points = adversaire devant), l'équipe reste dans le top 2.
+function clinchedTop2(g,score){
+  const teams=GROUP_TEAMS[g];const base={};teams.forEach(t=>base[t]=0);
+  const rem=[];
+  GROUP_MATCHES[g].forEach(m=>{const s=score(m.num);
+    if(!s){rem.push(m);return;}
+    const h=+s.h,a=+s.a;if(isNaN(h)||isNaN(a)){rem.push(m);return;}
+    if(h>a)base[m.home]+=3;else if(h<a)base[m.away]+=3;else{base[m.home]++;base[m.away]++;}});
+  const k=rem.length,total=Math.pow(3,k),clinched=new Set();
+  for(const X of teams){
+    let safe=true;
+    for(let mask=0;mask<total&&safe;mask++){
+      const pts={};teams.forEach(t=>pts[t]=base[t]);let mm=mask;
+      for(const m of rem){const o=mm%3;mm=Math.floor(mm/3);
+        if(o===0)pts[m.home]+=3;else if(o===1)pts[m.away]+=3;else{pts[m.home]++;pts[m.away]++;}}
+      let ahead=0;for(const Y of teams){if(Y!==X&&pts[Y]>=pts[X])ahead++;}
+      if(ahead>1)safe=false;
+    }
+    if(safe)clinched.add(X);
+  }
+  return clinched;
+}
+// onlyComplete=true : côté résultats réels (qualif d'office + classe figée si poule finie).
+// onlyComplete=false : côté pronostics d'un joueur (72 scores complets → classement total).
 function computeQualif(score,onlyComplete){
-  const tables={},pos={};let allDone=true;
+  const tables={},pos={},qualified=new Set();let allDone=true;
   GROUP_KEYS.forEach(g=>{const arr=groupTable(g,score);tables[g]=arr;const done=groupComplete(g,score);if(!done)allDone=false;
-    if(!onlyComplete||done){if(arr[0])pos[arr[0].team]='1';if(arr[1])pos[arr[1].team]='2';}});
+    if(onlyComplete){
+      clinchedTop2(g,score).forEach(t=>qualified.add(t));         // qualifiés d'office (classe pas encore sûre)
+      if(done){qualified.add(arr[0].team);qualified.add(arr[1].team);pos[arr[0].team]='1';pos[arr[1].team]='2';}
+    } else {
+      if(arr[0]){pos[arr[0].team]='1';qualified.add(arr[0].team);}
+      if(arr[1]){pos[arr[1].team]='2';qualified.add(arr[1].team);}
+    }});
   const thirdsReady=onlyComplete?allDone:true;let thirds=[];
   if(thirdsReady){thirds=GROUP_KEYS.map(g=>tables[g][2]).filter(Boolean)
     .sort((x,y)=>y.pts-x.pts||y.gd-x.gd||y.gf-x.gf||x.team.localeCompare(y.team,'fr')).slice(0,N_THIRDS);
-    thirds.forEach(t=>pos[t.team]='T');}
-  return {tables,pos,thirdsReady,allDone};
+    thirds.forEach(t=>{pos[t.team]='T';qualified.add(t.team);});}
+  return {tables,pos,qualified,thirdsReady,allDone};
 }
 function realQualif(){return computeQualif(n=>hasResult(n)?{h:+results[n].h,a:+results[n].a}:null,true);}
 function predQualif(pl){return computeQualif(n=>{const p=pl.preds[n];return p?{h:p[0],a:p[1]}:null;},false);}
@@ -322,9 +353,9 @@ function predQualif(pl){return computeQualif(n=>{const p=pl.preds[n];return p?{h
 // bonus = +1 si la classe prédite (1er/2e/meilleur 3e) == classe réelle.
 function qualPointsR32(pl,real){
   const pred=predQualif(pl);let qS=0,qBonus=0;const hits={};
-  for(const team in real.pos){const rc=QCOTES[team];if(!rc)continue;const pc=pred.pos[team];if(!pc)continue;
-    qS+=rc[0];const good=(pc===real.pos[team]);if(good)qBonus++;
-    hits[team]={cote:rc[0],good,predClass:pc,realClass:real.pos[team]};}
+  real.qualified.forEach(team=>{const rc=QCOTES[team];if(!rc)return;const pc=pred.pos[team];if(!pc)return;
+    qS+=rc[0];const known=real.pos[team];const good=!!known&&pc===known;if(good)qBonus++;
+    hits[team]={cote:rc[0],good,predClass:pc,realClass:known||null};});
   return {qS,qBonus,hits,pred};
 }
 
@@ -570,9 +601,9 @@ function renderQualif(){
     const ord={'1':0,'2':1,'T':2};
     const r32=Object.keys(pred.pos).sort((a,c)=>ord[pred.pos[a]]-ord[pred.pos[c]]||a.localeCompare(c,'fr'));
     let nbQ=0,nbBonus=0;
-    const chips=r32.map(t=>{const q=!!real.pos[t];if(q)nbQ++;const good=q&&real.pos[t]===pred.pos[t];if(good)nbBonus++;
+    const chips=r32.map(t=>{const q=real.qualified.has(t);if(q)nbQ++;const good=q&&real.pos[t]&&real.pos[t]===pred.pos[t];if(good)nbBonus++;
       const cls=q?(good?'chip qok':'chip qpart'):'chip';
-      const tip=`prédit ${CLASS_LBL[pred.pos[t]]}${q?' · qualifié réel : '+CLASS_LBL[real.pos[t]]:''}`;
+      const tip=`prédit ${CLASS_LBL[pred.pos[t]]}${q?(real.pos[t]?' · qualifié '+CLASS_LBL[real.pos[t]]:' · qualifié (position à confirmer)'):''}`;
       return `<span class="${cls}" title="${tip}">${t}<span class="cpos">${pred.pos[t]}</span>${good?' ✓':''}</span>`;}).join("");
     h+=`<div class="round"><div class="rh"><span>Seizièmes de finale <span style="color:var(--muted)">(${r32.length})</span></span><span class="mult">×1 cote +1 bonus</span></div><div class="chips">${chips}</div>`;
     if(nbQ>0||real.allDone)h+=`<div class="qsum">✅ ${nbQ} qualifié(s) trouvé(s) · 🎯 ${nbBonus} en bonne position</div>`;
