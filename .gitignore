@@ -1,11 +1,6 @@
-# Ne publier que la page web (index.html). On exclut les données sources.
-CDM2026.xlsm
-CDM2026.xlsx
-CDM2026_Inscription_*.xlsx
-Classement.pdf
-matchs_a_remplir.tsv
-resultats_cdm2026.json
-Pronostics_CDM2026.html
-Pronostics_CDM2026 - Copie (2).html
-GUIDE_GoogleSheet.md
-README.md
+# Liste blanche : on IGNORE TOUT par défaut...
+/*
+# ...sauf la page web publiée et ce fichier .gitignore.
+# Résultat : aucun Excel, PDF, dossier source/ ou doc ne peut partir sur GitHub.
+!index.html
+!.gitignore
