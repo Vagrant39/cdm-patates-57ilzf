@@ -156,6 +156,8 @@
   .chip.qpart{border-color:var(--win);color:var(--win)}
   .chip .cpos{display:inline-block;margin-left:5px;font-size:9px;background:var(--line);color:var(--muted);border-radius:4px;padding:0 4px;vertical-align:middle}
   .qsum{margin-top:8px;font-size:12px;color:var(--win)}
+  .chip[data-team]{cursor:pointer}
+  .chip.sel{outline:2px solid var(--accent2);outline-offset:1px;background:rgba(74,163,255,.30);color:#fff;border-color:var(--accent2)}
   @media(max-width:760px){.qual-grid{grid-template-columns:1fr}.teams{font-size:14px;min-width:140px}table.entry .dt,table.entry .grp{display:none}}
   .btn-sheet{display:inline-block;background:var(--accent);color:#06131f;border:1px solid var(--accent);border-radius:8px;padding:7px 12px;font-size:13px;font-weight:700;text-decoration:none;cursor:pointer}
   .btn-sheet:hover{filter:brightness(1.06)}
@@ -208,7 +210,8 @@
   <div class="view" id="view-qualif">
     <div class="card"><div class="card-h"><strong>🔮 Pronostics phase finale (bracket)</strong></div>
       <div class="legend">Barème : chaque équipe correctement qualifiée rapporte multiplicateur × cote de qualification — Seizièmes ×1 (+1 bonus si la position 1er/2e/meilleur 3e est correcte), Huitièmes ×3, Quarts ×4, Demies ×5, Finale ×6, Vainqueur ×7.<br>
-      Les <b>Seizièmes</b> sont déduits automatiquement de tes pronostics de match (qui finit 1er, 2e, meilleur 3e de chaque poule) et calculés en direct au fil des résultats. <span class="chip qok">vert</span> = équipe correctement pronostiquée qualifiée · <b>✓</b> = position correcte (bonus). Les tours suivants (Huitièmes→Vainqueur) restent les pronostics de bracket et seront calculés quand la phase finale débutera.</div></div>
+      Les <b>Seizièmes</b> sont déduits automatiquement de tes pronostics de match (qui finit 1er, 2e, meilleur 3e de chaque poule) et calculés en direct au fil des résultats. <span class="chip qok">vert</span> = équipe correctement pronostiquée qualifiée · <b>✓</b> = position correcte (bonus). Les tours suivants (Huitièmes→Vainqueur) restent les pronostics de bracket et seront calculés quand la phase finale débutera.<br>
+      💡 Astuce : <b>clique sur un pays</b> pour le surligner partout (chez tous les membres, à tous les tours) et voir jusqu'où chacun l'a pronostiqué.</div></div>
     <div class="qual-grid" id="qual-grid"></div>
   </div>
 
@@ -589,9 +592,13 @@ function wireSaisie(){
 }
 
 /* ---------- Qualification ---------- */
+let qSel=null;
+function applyQSel(){const grid=document.getElementById("qual-grid");if(!grid)return;
+  grid.querySelectorAll(".chip[data-team]").forEach(c=>c.classList.toggle("sel",!!qSel&&c.dataset.team===qSel));}
 function renderQualif(){
   const grid=document.getElementById("qual-grid");
   const real=realQualif();
+  const POSN={'1':'1','2':'2','T':'3'};
   const rdef=[["r16","Huitièmes","×3"],["qf","Quarts","×4"],["sf","Demies","×5"],["final","Finale","×6"]];
   grid.innerHTML=TEAM.map(member=>{
     const b=TEAM_BRACKETS[member.name];const pred=predQualif(member);const fn=member.name.split(" ")[0];
@@ -604,13 +611,15 @@ function renderQualif(){
     const chips=r32.map(t=>{const q=real.qualified.has(t);if(q)nbQ++;const good=q&&real.pos[t]&&real.pos[t]===pred.pos[t];if(good)nbBonus++;
       const cls=q?(good?'chip qok':'chip qpart'):'chip';
       const tip=`prédit ${CLASS_LBL[pred.pos[t]]}${q?(real.pos[t]?' · qualifié '+CLASS_LBL[real.pos[t]]:' · qualifié (position à confirmer)'):''}`;
-      return `<span class="${cls}" title="${tip}">${t}<span class="cpos">${pred.pos[t]}</span>${good?' ✓':''}</span>`;}).join("");
+      return `<span class="${cls}" data-team="${t}" title="${tip}">${t}<span class="cpos">${POSN[pred.pos[t]]}</span>${good?' ✓':''}</span>`;}).join("");
     h+=`<div class="round"><div class="rh"><span>Seizièmes de finale <span style="color:var(--muted)">(${r32.length})</span></span><span class="mult">×1 cote +1 bonus</span></div><div class="chips">${chips}</div>`;
     if(nbQ>0||real.allDone)h+=`<div class="qsum">✅ ${nbQ} qualifié(s) trouvé(s) · 🎯 ${nbBonus} en bonne position</div>`;
     else h+=`<div class="qsum" style="color:var(--muted)">En attente de la fin des poules pour les qualifiés.</div>`;
     h+=`</div>`;
-    if(b)rdef.forEach(([k,lbl,mult])=>{const teams=b[k]||[];h+=`<div class="round"><div class="rh"><span>${lbl} <span style="color:var(--muted)">(${teams.length})</span></span><span class="mult">${mult} cote</span></div><div class="chips">`+teams.map(t=>`<span class="chip ${t===b.winner?'gold':''}">${t}</span>`).join("")+`</div></div>`;});
+    if(b)rdef.forEach(([k,lbl,mult])=>{const teams=b[k]||[];h+=`<div class="round"><div class="rh"><span>${lbl} <span style="color:var(--muted)">(${teams.length})</span></span><span class="mult">${mult} cote</span></div><div class="chips">`+teams.map(t=>`<span class="chip" data-team="${t}">${t}</span>`).join("")+`</div></div>`;});
     return h+`</div>`;}).join("");
+  if(!grid.dataset.wired){grid.dataset.wired="1";grid.addEventListener("click",e=>{const c=e.target.closest(".chip[data-team]");if(!c)return;qSel=(qSel===c.dataset.team)?null:c.dataset.team;applyQSel();});}
+  applyQSel();
 }
 
 /* ---------- Tabs ---------- */
