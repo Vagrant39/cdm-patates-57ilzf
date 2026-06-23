@@ -422,7 +422,7 @@ function allStats(pl,lcNums,real){
 }
 function renderClassement(){
   const lc=lastActiveMD();const lcNums=lc?MD[lc].map(m=>m.num):[];const hasEvo=!!lc;
-  const real=realQualif();
+  const real=realQualif();const nQual=real.qualified.size;
   const all=ALL_PLAYERS.map(p=>allStats(p,lcNums,real)).sort((a,b)=>b.total-a.total);
   all.forEach((r,i)=>r.rank=i+1);
   const byPrev=[...all].sort((a,b)=>b.prevTotal-a.prevTotal);const PR={};byPrev.forEach((r,i)=>PR[r.name]=i+1);all.forEach(r=>{r.dRank=PR[r.name]-r.rank;});
@@ -435,7 +435,7 @@ function renderClassement(){
   rows=[...rows].sort((a,b)=>sk==='name'?sdir*a.name.localeCompare(b.name,'fr'):sdir*((a[sk]||0)-(b[sk]||0)));
   const serie=v=>{const c=v>0?"pos":v<0?"neg":"zero";return `<span class="${c}">${v>0?"+":""}${v}</span>`;};
   const COLS=[['Rang','rank'],['Joueur','name','jl'],['Points','total'],['Fiab.','fiab'],['Détail','correct'],['Tout-pile','exacts'],['Max/match','maxm'],['Série','cur'],['Meill.','best'],['Pire','worst'],['1à72','group','sep'],['S16','s16'],['H8','h8'],['Q4','q4'],['D2','d2'],['Finale','f'],['S','qS','sep'],['H','qH'],['Q','qQ'],['D','qD'],['V','qV'],['Bonus','qBonus']];
-  const colsH=COLS.map(([lbl,k,cl])=>{const cls=['sortable'];if(cl==='sep')cls.push('sep');if(cl==='jl')cls.push('jl');if(clSort.key===k)cls.push('sorted');const arr=clSort.key===k?(clSort.dir<0?' ▼':' ▲'):'';const ti=k==='qS'?' title="Seizièmes : points (nombre de qualifiés trouvés)"':'';return `<th class="${cls.join(' ')}" data-sk="${k}"${ti}>${lbl}${arr}</th>`;}).join("");
+  const colsH=COLS.map(([lbl,k,cl])=>{const cls=['sortable'];if(cl==='sep')cls.push('sep');if(cl==='jl')cls.push('jl');if(clSort.key===k)cls.push('sorted');const arr=clSort.key===k?(clSort.dir<0?' ▼':' ▲'):'';const ti=k==='qS'?' title="Seizièmes : points (qualifiés trouvés / qualifiés connus)"':'';return `<th class="${cls.join(' ')}" data-sk="${k}"${ti}>${lbl}${arr}</th>`;}).join("");
   let h=`<thead><tr class="grp"><th colspan="10">Profil</th><th colspan="6" class="sep">Détail match (points)</th><th colspan="6" class="sep">Détail qualifications</th></tr>
     <tr class="cols">${colsH}</tr></thead><tbody>`;
   const bestOf=(k,dir)=>{const v=rows.map(r=>r[k]);if(new Set(v).size<=1)return null;return dir==='min'?Math.min(...v):Math.max(...v);};
@@ -449,7 +449,7 @@ function renderClassement(){
     h+=`<tr class="${r.isTeam?'team':''}"><td class="rank">${medal}${hasEvo?evo(r.dRank):""}</td><td class="name clickable" data-name="${r.name}">${r.name}${clOpen.has(r.name)?" ▾":""}</td><td class="pts${L('total',r.total,true)}">${fmt(r.total)}${hasEvo?` <span class="evo pts">(+${fmt(r.lastDayPts)})</span>`:""}</td><td class="${L('fiab',r.fiab,true).trim()}">${r.fiab}%</td>
     <td class="${L('correct',r.correct,true).trim()}"><strong>${r.correct}</strong> <span style="color:var(--muted)">/ ${r.played}</span></td><td class="${L('exacts',r.exacts,true).trim()}">${r.exacts}</td><td class="${L('maxm',r.maxm,true).trim()}">${fmt(r.maxm)}</td><td class="${L('cur',r.cur,true).trim()}">${serie(r.cur)}</td><td class="${L('best',r.best,true).trim()}">${r.best}</td><td class="${L('worst',r.worst,false).trim()}">${r.worst}</td>
     <td class="sep${L('group',r.group,true)}"><strong>${fmt(r.group)}</strong></td><td>${fmt(r.s16)}</td><td>${fmt(r.h8)}</td><td>${fmt(r.q4)}</td><td>${fmt(r.d2)}</td><td>${fmt(r.f)}</td>
-    <td class="sep${L('qS',r.qS,true)}">${fmt(r.qS)}${r.qNb?` <span style="color:var(--muted)">(${r.qNb})</span>`:""}</td><td>${fmt(r.qH)}</td><td>${fmt(r.qQ)}</td><td>${fmt(r.qD)}</td><td>${fmt(r.qV)}</td><td class="${L('qBonus',r.qBonus,true).trim()}">${fmt(r.qBonus)}</td></tr>`;
+    <td class="sep${L('qS',r.qS,true)}">${fmt(r.qS)}${nQual>0?` <span style="color:var(--muted)">(${r.qNb}/${nQual})</span>`:""}</td><td>${fmt(r.qH)}</td><td>${fmt(r.qQ)}</td><td>${fmt(r.qD)}</td><td>${fmt(r.qV)}</td><td class="${L('qBonus',r.qBonus,true).trim()}">${fmt(r.qBonus)}</td></tr>`;
     if(clOpen.has(r.name))h+=`<tr class="detail-row"><td colspan="${COLS.length}">${playerDetailHTML(r.name)}</td></tr>`;});
   h+="</tbody>";const clt=document.getElementById("cl-table");clt.innerHTML=h;
   clt.querySelectorAll("th.sortable").forEach(t=>t.onclick=()=>setSort(t.dataset.sk));
