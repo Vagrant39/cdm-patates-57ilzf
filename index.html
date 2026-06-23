@@ -181,6 +181,9 @@
   .bch{font-size:11px;border:1px solid var(--line);border-radius:6px;padding:2px 7px;white-space:nowrap}
   .pkv{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
   .plegend{font-size:11px;color:var(--muted);margin-top:4px}
+  .pcol{fill:transparent;cursor:pointer}
+  .pcol:hover{fill:rgba(255,255,255,.06)}
+  .pcap{font-size:12px;color:var(--txt);margin-top:6px;min-height:15px;font-weight:600}
   @media(max-width:760px){.pdetail{grid-template-columns:1fr;padding:10px;width:calc(100vw - 20px)}}
 </style>
 </head>
@@ -451,6 +454,7 @@ function renderClassement(){
   h+="</tbody>";const clt=document.getElementById("cl-table");clt.innerHTML=h;
   clt.querySelectorAll("th.sortable").forEach(t=>t.onclick=()=>setSort(t.dataset.sk));
   clt.querySelectorAll("td.name.clickable").forEach(td=>td.onclick=()=>{const nm=td.dataset.name;if(clOpen.has(nm))clOpen.delete(nm);else clOpen.add(nm);renderClassement();});
+  clt.querySelectorAll(".pcol").forEach(el=>el.onclick=()=>{const box=el.closest(".box"),cap=box&&box.querySelector(".pcap");if(cap)cap.textContent=el.dataset.cap;});
 }
 /* ---------- Panneau détail joueur ---------- */
 function playerProgress(name){
@@ -471,7 +475,8 @@ function miniChart(rows,totalPlayers){
   const ry=rk=>padT+plotH*((rk-1)/Math.max(1,totalPlayers-1));
   const line=rows.map((r,i)=>`${x(i).toFixed(1)},${ry(r.rank).toFixed(1)}`).join(' ');
   const dots=rows.map((r,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${ry(r.rank).toFixed(1)}" r="2.6" fill="var(--accent)"><title>J${i+1} : ${r.rank}e (${fmt(r.cum)} pts)</title></circle>`).join('');
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" class="pchart">${bars}<polyline points="${line}" fill="none" stroke="var(--accent)" stroke-width="2"/>${dots}</svg>`;
+  const cols=rows.map((r,i)=>{const dt=new Date(r.key+"T12:00:00");const ds=`${dt.getDate()} ${MON[dt.getMonth()]}`;const cap=`J${i+1} · ${ds} : +${fmt(r.pts)} pts · ${r.rank}ᵉ · total ${fmt(r.cum)}`;return `<rect class="pcol" x="${(padL+plotW*i/n).toFixed(1)}" y="${padT}" width="${(plotW/n).toFixed(1)}" height="${plotH}" data-cap="${cap}"/>`;}).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" class="pchart">${bars}<polyline points="${line}" fill="none" stroke="var(--accent)" stroke-width="2"/>${dots}${cols}</svg>`;
 }
 function playerDetailHTML(name){
   const pl=ALL_PLAYERS.find(p=>p.name===name);if(!pl)return"";
@@ -482,21 +487,23 @@ function playerDetailHTML(name){
     return {n,m,played,ok,earned};});
   const bDone=boosts.filter(b=>b.played),bOk=bDone.filter(b=>b.ok);
   const bEarned=bDone.reduce((s,b)=>s+b.earned,0),bPend=boosts.length-bDone.length;
-  const bChips=boosts.map(b=>{const ic=!b.played?'⏳':(b.ok?'✅':'❌');const tm=b.m?`${b.m.home} - ${b.m.away}`:('#'+b.n);
-    return `<span class="bch" title="${tm}">${ic} #${b.n}${b.ok?` <b style="color:var(--win)">+${fmt(b.earned)}</b>`:''}</span>`;}).join('');
+  const bChips=boosts.map(b=>{const ic=!b.played?'⏳':(b.ok?'✅':'❌');const tm=b.m?`${b.m.home}-${b.m.away}`:('#'+b.n);
+    const sc=b.played?` <b>${results[b.n].h}-${results[b.n].a}</b>`:` <span style="color:var(--muted)">à venir</span>`;
+    return `<span class="bch">${ic} ${tm}${sc}${b.ok?` <b style="color:var(--win)">+${fmt(b.earned)}</b>`:''}</span>`;}).join('');
   const playedM=MATCHES.filter(m=>hasResult(m.num)&&pl.preds[m.num]).sort((a,b)=>new Date(a.date)-new Date(b.date));
-  const last=playedM.slice(-12);let nbOk=0;
+  const last=playedM.slice(-20);let nbOk=0;
   const pas=last.map(m=>{const pr=pl.preds[m.num],r=results[m.num],rh=+r.h,ra=+r.a;
     const ok=outcome(pr[0],pr[1])===outcome(rh,ra);const ex=ok&&pr[0]===rh&&pr[1]===ra;if(ok)nbOk++;
     return `<span class="pas ${ok?'ok':'ko'}${ex?' exact':''}" title="#${m.num} ${m.home} ${rh}-${ra} ${m.away} · prono ${pr[0]}-${pr[1]}"></span>`;}).join('');
   return `<div class="pdetail">
     <div class="box"><h4>📈 Évolution — rang & points par journée</h4>${miniChart(prog,ALL_PLAYERS.length)}
+      <div class="pcap">👆 Touche une journée pour le détail</div>
       <div class="plegend">⏤ rang (vert, haut = meilleur) · ▮ points de la journée (bleu)</div></div>
     <div>
       <div class="box"><h4>⚡ Boosts</h4>
         <div class="pkv"><span><b>${bOk.length}/${bDone.length}</b> réussis</span><span><b style="color:var(--win)">+${fmt(bEarned)}</b> pts</span><span>${bPend} à venir</span></div>
         <div class="pboost">${bChips||'<span class="hint">Aucun boost.</span>'}</div></div>
-      <div class="box" style="margin-top:10px"><h4>🎯 Forme — ${nbOk}/${last.length} bons (12 derniers)</h4>
+      <div class="box" style="margin-top:10px"><h4>🎯 Forme — ${nbOk}/${last.length} bons (${last.length} derniers)</h4>
         <div class="pform">${pas||'<span class="hint">Pas encore de match joué.</span>'}</div>
         <div class="plegend">🟢 bon résultat · 🔴 raté · contour doré = score exact</div></div>
     </div>
@@ -520,7 +527,7 @@ function matchCardHTML(m,extraClass){
   const pmax=_pots.length?Math.max(..._pots):0,pmin=_pots.length?Math.min(..._pots):0,spread=pmax>pmin;
   const predRows=TEAM.map(member=>{const pl=plOf(member,m.num);if(!pl)return"";const g=gains(m,pl),earned=pointsFor(m,pl);
     const top=spread&&g.exact===pmax;
-    let ec="—";if(earned!==null)ec=earned.pts>0?`<span class="earned win">${fmt(earned.pts)}${earned.exact?" ✓score":""}</span>`:`<span class="earned zero">0${top?" 😭":""}</span>`;
+    let ec="—";if(earned!==null)ec=earned.pts>0?`<span class="earned win">${fmt(earned.pts)}${earned.exact?" ✓tout pile":""}</span>`:`<span class="earned zero">0${top?" 😭":""}</span>`;
     const gx=pl.boost?"gain x2":"gain";const fn=member.name.split(" ")[0];
     const inten=spread?(g.exact-pmin)/(pmax-pmin):0;
     const heat=spread?`background:hsla(${Math.round(205-205*inten)},85%,55%,${(0.08+0.30*inten).toFixed(2)})`:"";
