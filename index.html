@@ -477,7 +477,7 @@ function miniChart(rows,totalPlayers){
   const line=rows.map((r,i)=>`${x(i).toFixed(1)},${ry(r.rank).toFixed(1)}`).join(' ');
   const pills=rows.map((r,i)=>{const cx=x(i),cy=ry(r.rank),w=String(r.rank).length*6+8;
     return `<g><rect x="${(cx-w/2).toFixed(1)}" y="${(cy-7).toFixed(1)}" width="${w}" height="14" rx="4" fill="var(--panel)" stroke="var(--accent)" stroke-width="1.2"/><text x="${cx.toFixed(1)}" y="${(cy+3).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="var(--accent)">${r.rank}</text></g>`;}).join('');
-  const cols=rows.map((r,i)=>{const dt=new Date(r.key+"T12:00:00");const ds=`${dt.getDate()} ${MON[dt.getMonth()]}`;const cap=`J${i+1} · ${ds} : +${fmt(r.pts)} pts · ${r.rank}ᵉ · total ${fmt(r.cum)}`;return `<rect class="pcol" x="${(padL+plotW*i/n).toFixed(1)}" y="${padT}" width="${(plotW/n).toFixed(1)}" height="${plotH}" data-cap="${cap}"/>`;}).join('');
+  const cols=rows.map((r,i)=>{const dt=new Date(r.key+"T12:00:00");const ds=`${dt.getDate()} ${MON[dt.getMonth()]}`;const cap=`${ds} : +${fmt(r.pts)} pts · ${r.rank}ᵉ · total ${fmt(r.cum)}`;return `<rect class="pcol" x="${(padL+plotW*i/n).toFixed(1)}" y="${padT}" width="${(plotW/n).toFixed(1)}" height="${plotH}" data-cap="${cap}"/>`;}).join('');
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" class="pchart">${bars}<polyline points="${line}" fill="none" stroke="var(--accent)" stroke-width="2"/>${pills}${cols}</svg>`;
 }
 function playerDetailHTML(name){
@@ -493,21 +493,21 @@ function playerDetailHTML(name){
     const sc=b.played?` <b>${results[b.n].h}-${results[b.n].a}</b>`:` <span style="color:var(--muted)">à venir</span>`;
     return `<span class="bch">${ic} ${tm}${sc}${b.ok?` <b style="color:var(--win)">+${fmt(b.earned)}</b>`:''}</span>`;}).join('');
   const playedM=MATCHES.filter(m=>hasResult(m.num)&&pl.preds[m.num]).sort((a,b)=>new Date(a.date)-new Date(b.date));
-  const last=playedM.slice(-20);let nbOk=0;
+  const last=playedM.slice(-16);let nbOk=0;
   const pas=last.map(m=>{const pr=pl.preds[m.num],r=results[m.num],rh=+r.h,ra=+r.a;
     const ok=outcome(pr[0],pr[1])===outcome(rh,ra);const ex=ok&&pr[0]===rh&&pr[1]===ra;if(ok)nbOk++;
     return `<span class="pas ${ok?'ok':'ko'}${ex?' exact':''}" title="#${m.num} ${m.home} ${rh}-${ra} ${m.away} · prono ${pr[0]}-${pr[1]}"></span>`;}).join('');
   return `<div class="pdetail">
-    <div class="box"><h4>📈 Évolution — rang & points par journée</h4>${miniChart(prog,ALL_PLAYERS.length)}
-      <div class="pcap">👆 Touche une journée pour le détail</div>
+    <div class="box"><h4>📈 Évolution — rang & points par journée (10 dernières)</h4>${miniChart(prog.slice(-10),ALL_PLAYERS.length)}
+      <div class="pcap"></div>
       <div class="plegend">⬤ pastille verte = rang (haut = meilleur) · chiffre au-dessus des barres = points de la journée</div></div>
     <div>
-      <div class="box"><h4>⚡ Boosts</h4>
-        <div class="pkv"><span><b>${bOk.length}/${bDone.length}</b> réussis</span><span><b style="color:var(--win)">+${fmt(bEarned)}</b> pts</span><span>${bPend} à venir</span></div>
-        <div class="pboost">${bChips||'<span class="hint">Aucun boost.</span>'}</div></div>
-      <div class="box" style="margin-top:10px"><h4>🎯 Forme — ${nbOk}/${last.length} bons (${last.length} derniers)</h4>
+      <div class="box"><h4>🎯 Forme — ${nbOk}/${last.length} bons (${last.length} derniers)</h4>
         <div class="pform">${pas||'<span class="hint">Pas encore de match joué.</span>'}</div>
         <div class="plegend">🟢 bon résultat · 🔴 raté · contour doré = score exact</div></div>
+      <div class="box" style="margin-top:10px"><h4>⚡ Boosts</h4>
+        <div class="pkv"><span><b>${bOk.length}/${bDone.length}</b> réussis</span><span><b style="color:var(--win)">+${fmt(bEarned)}</b> pts</span><span>${bPend} à venir</span></div>
+        <div class="pboost">${bChips||'<span class="hint">Aucun boost.</span>'}</div></div>
     </div>
   </div>`;
 }
