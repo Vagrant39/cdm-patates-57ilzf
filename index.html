@@ -460,27 +460,34 @@ function renderClassement(){
 }
 /* ---------- Panneau détail joueur ---------- */
 function playerProgress(name){
-  const days=MDKEYS.filter(k=>MD[k].some(m=>hasResult(m.num)));
+  // Toutes les journées de poule (jouées ET à venir) pour une largeur stable
   const cums={};ALL_PLAYERS.forEach(p=>cums[p.name]=0);const rows=[];
-  days.forEach(k=>{const nums=MD[k].map(m=>m.num);let dayPts=0;
-    ALL_PLAYERS.forEach(p=>{const dp=ptsOnMatches(p,nums);cums[p.name]+=dp;if(p.name===name)dayPts=dp;});
-    const me=cums[name];let rank=1;ALL_PLAYERS.forEach(p=>{if(cums[p.name]>me)rank++;});
-    rows.push({key:k,pts:dayPts,cum:me,rank});});
+  MDKEYS.forEach(k=>{const nums=MD[k].map(m=>m.num);const played=MD[k].some(m=>hasResult(m.num));
+    if(played){let dayPts=0;ALL_PLAYERS.forEach(p=>{const dp=ptsOnMatches(p,nums);cums[p.name]+=dp;if(p.name===name)dayPts=dp;});
+      const me=cums[name];let rank=1;ALL_PLAYERS.forEach(p=>{if(cums[p.name]>me)rank++;});
+      rows.push({key:k,played:true,pts:dayPts,cum:me,rank});}
+    else rows.push({key:k,played:false});});
   return rows;
 }
 function miniChart(rows,totalPlayers){
-  const n=rows.length;if(n===0)return '<div class="hint">Pas encore de journée jouée.</div>';
-  const PERDAY=58,W=Math.max(300,n*PERDAY),H=176,padL=10,padR=10,padB=16,padT=20;
-  const plotH=H-padB-padT,plotW=W-padL-padR;const maxP=Math.max(1,...rows.map(r=>r.pts));
+  const n=rows.length;if(n===0)return '<div class="hint">Pas encore de journée.</div>';
+  const W=Math.max(320,n*44),H=176,padL=10,padR=10,padB=16,padT=20;
+  const plotH=H-padB-padT,plotW=W-padL-padR;const baseY=padT+plotH;
+  const played=rows.filter(r=>r.played);const maxP=Math.max(1,...played.map(r=>r.pts));
   const barMax=plotH*0.78;const bw=plotW/n*0.5;const x=i=>padL+plotW*(i+0.5)/n;
-  const bars=rows.map((r,i)=>{const h=barMax*r.pts/maxP;const by=padT+plotH-h;let t=`<rect x="${(x(i)-bw/2).toFixed(1)}" y="${by.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="var(--accent2)" opacity="0.5"/>`;
-    if(r.pts>0)t+=`<text x="${x(i).toFixed(1)}" y="${(by-3).toFixed(1)}" text-anchor="middle" font-size="9" fill="var(--accent2)">${fmt(r.pts)}</text>`;return t;}).join('');
   const ry=rk=>padT+plotH*((rk-1)/Math.max(1,totalPlayers-1));
-  const line=rows.map((r,i)=>`${x(i).toFixed(1)},${ry(r.rank).toFixed(1)}`).join(' ');
-  const pills=rows.map((r,i)=>{const cx=x(i),cy=ry(r.rank),w=String(r.rank).length*6+8;
-    return `<g><rect x="${(cx-w/2).toFixed(1)}" y="${(cy-7).toFixed(1)}" width="${w}" height="14" rx="4" fill="var(--panel)" stroke="var(--accent)" stroke-width="1.2"/><text x="${cx.toFixed(1)}" y="${(cy+3).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="var(--accent)">${r.rank}</text></g>`;}).join('');
-  const cols=rows.map((r,i)=>{const dt=new Date(r.key+"T12:00:00");const ds=`${dt.getDate()} ${MON[dt.getMonth()]}`;const cap=`${ds} : +${fmt(r.pts)} pts · ${r.rank}ᵉ · total ${fmt(r.cum)}`;return `<rect class="pcol" x="${(padL+plotW*i/n).toFixed(1)}" y="${padT}" width="${(plotW/n).toFixed(1)}" height="${plotH}" data-cap="${cap}"/>`;}).join('');
-  return `<div class="pchart-wrap"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" class="pchart">${bars}<polyline points="${line}" fill="none" stroke="var(--accent)" stroke-width="2"/>${pills}${cols}</svg></div>`;
+  let bars='',pills='',cols='';const linePts=[];
+  rows.forEach((r,i)=>{const dt=new Date(r.key+"T12:00:00");const ds=`${dt.getDate()} ${MON[dt.getMonth()]}`;
+    if(r.played){const h=barMax*r.pts/maxP,by=baseY-h;
+      if(r.pts>0){bars+=`<rect x="${(x(i)-bw/2).toFixed(1)}" y="${by.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="var(--accent2)" opacity="0.5"/><text x="${x(i).toFixed(1)}" y="${(by-3).toFixed(1)}" text-anchor="middle" font-size="9" fill="var(--accent2)">${fmt(r.pts)}</text>`;}
+      const cy=ry(r.rank),w=String(r.rank).length*6+8;linePts.push(`${x(i).toFixed(1)},${cy.toFixed(1)}`);
+      pills+=`<g><rect x="${(x(i)-w/2).toFixed(1)}" y="${(cy-7).toFixed(1)}" width="${w}" height="14" rx="4" fill="var(--panel)" stroke="var(--accent)" stroke-width="1.2"/><text x="${x(i).toFixed(1)}" y="${(cy+3).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="var(--accent)">${r.rank}</text></g>`;
+      cols+=`<rect class="pcol" x="${(padL+plotW*i/n).toFixed(1)}" y="${padT}" width="${(plotW/n).toFixed(1)}" height="${plotH}" data-cap="${ds} : +${fmt(r.pts)} pts · ${r.rank}ᵉ · total ${fmt(r.cum)}"/>`;
+    } else {bars+=`<circle cx="${x(i).toFixed(1)}" cy="${baseY.toFixed(1)}" r="1.4" fill="var(--line)"/>`;
+      cols+=`<rect class="pcol" x="${(padL+plotW*i/n).toFixed(1)}" y="${padT}" width="${(plotW/n).toFixed(1)}" height="${plotH}" data-cap="${ds} : à venir"/>`;}
+  });
+  const line=linePts.length>1?`<polyline points="${linePts.join(' ')}" fill="none" stroke="var(--accent)" stroke-width="2"/>`:'';
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" class="pchart">${bars}${line}${pills}${cols}</svg>`;
 }
 function playerDetailHTML(name){
   const pl=ALL_PLAYERS.find(p=>p.name===name);if(!pl)return"";
