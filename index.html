@@ -498,7 +498,7 @@ function playerDetailHTML(name){
     const ok=outcome(pr[0],pr[1])===outcome(rh,ra);const ex=ok&&pr[0]===rh&&pr[1]===ra;if(ok)nbOk++;
     return `<span class="pas ${ok?'ok':'ko'}${ex?' exact':''}" title="#${m.num} ${m.home} ${rh}-${ra} ${m.away} · prono ${pr[0]}-${pr[1]}"></span>`;}).join('');
   return `<div class="pdetail">
-    <div class="box"><h4>📈 Évolution — rang & points par journée (10 dernières)</h4>${miniChart(prog.slice(-10),ALL_PLAYERS.length)}
+    <div class="box"><h4>📈 Évolution — rang & points par journée</h4>${miniChart(prog,ALL_PLAYERS.length)}
       <div class="pcap"></div>
       <div class="plegend">⬤ pastille verte = rang (haut = meilleur) · chiffre au-dessus des barres = points de la journée</div></div>
     <div>
