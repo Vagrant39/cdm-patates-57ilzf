@@ -267,8 +267,14 @@ const COTE={};MATCHES.forEach(m=>COTE[m.num]=m);
 function mdKey(iso){const a=iso.split("T");const d=a[0].split("-").map(Number);const p=a[1].split(":").map(Number);const ms=Date.UTC(d[0],d[1]-1,d[2],p[0],p[1])-9*3600000;const dt=new Date(ms);return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth()+1).padStart(2,"0")}-${String(dt.getUTCDate()).padStart(2,"0")}`;}
 const MD={};MATCHES.forEach(m=>{const k=mdKey(m.date);(MD[k]=MD[k]||[]).push(m);});
 const MDKEYS=Object.keys(MD).sort();
-// Journées des phases finales anticipées (dates de début issues du règlement) — réservées dans le graphe d'évolution
-const KO_MD=[{key:"2026-06-28",label:"Seizièmes"},{key:"2026-07-04",label:"Huitièmes"},{key:"2026-07-09",label:"Quarts"},{key:"2026-07-14",label:"Demies"},{key:"2026-07-18",label:"Finale"}].filter(k=>!MDKEYS.includes(k.key));
+// Journées des phases finales anticipées (déduites du calendrier officiel) — réservées dans le graphe d'évolution
+const KO_MD=[
+  {key:"2026-06-28",label:"Seizièmes"},{key:"2026-06-29",label:"Seizièmes"},{key:"2026-06-30",label:"Seizièmes"},{key:"2026-07-01",label:"Seizièmes"},{key:"2026-07-02",label:"Seizièmes"},{key:"2026-07-03",label:"Seizièmes"},
+  {key:"2026-07-04",label:"Huitièmes"},{key:"2026-07-05",label:"Huitièmes"},{key:"2026-07-06",label:"Huitièmes"},{key:"2026-07-07",label:"Huitièmes"},
+  {key:"2026-07-09",label:"Quarts"},{key:"2026-07-10",label:"Quarts"},{key:"2026-07-11",label:"Quarts"},
+  {key:"2026-07-14",label:"Demies"},{key:"2026-07-15",label:"Demies"},
+  {key:"2026-07-18",label:"3e place"},{key:"2026-07-19",label:"Finale"}
+].filter(k=>!MDKEYS.includes(k.key));
 function todayKeyPacific(){try{return new Date().toLocaleDateString("en-CA",{timeZone:"America/Los_Angeles"});}catch(e){return new Date().toISOString().slice(0,10);}}
 function lastActiveMD(){let r=null;for(const k of MDKEYS){if(MD[k].some(m=>hasResult(m.num)))r=k;}return r;}
 function pickMatchdays(){let current=null;for(const k of MDKEYS){if(MD[k].some(m=>!hasResult(m.num))){current=k;break;}}if(!current){const today=todayKeyPacific();current=MDKEYS.find(k=>k>=today)||MDKEYS[MDKEYS.length-1];}const ci=MDKEYS.indexOf(current);return{current,previous:ci>0?MDKEYS[ci-1]:null};}
@@ -480,15 +486,16 @@ function miniChart(rows,totalPlayers){
   const barMax=plotH*0.78;const bw=plotW/n*0.5;const x=i=>padL+plotW*(i+0.5)/n;
   const ry=rk=>padT+plotH*((rk-1)/Math.max(1,totalPlayers-1));
   let bars='',pills='',cols='';const linePts=[];
+  const ABBR={Seizièmes:'16es',Huitièmes:'8es',Quarts:'Quarts',Demies:'Demies','3e place':'3e',Finale:'Finale'};let lastKO='';
   rows.forEach((r,i)=>{const dt=new Date(r.key+"T12:00:00");const ds=`${dt.getDate()} ${MON[dt.getMonth()]}`;
     if(r.played){const h=barMax*r.pts/maxP,by=baseY-h;
       if(r.pts>0){bars+=`<rect x="${(x(i)-bw/2).toFixed(1)}" y="${by.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="var(--accent2)" opacity="0.5"/><text x="${x(i).toFixed(1)}" y="${(by-3).toFixed(1)}" text-anchor="middle" font-size="9" fill="var(--accent2)">${fmt(r.pts)}</text>`;}
       const cy=ry(r.rank),w=String(r.rank).length*6+8;linePts.push(`${x(i).toFixed(1)},${cy.toFixed(1)}`);
       pills+=`<g><rect x="${(x(i)-w/2).toFixed(1)}" y="${(cy-7).toFixed(1)}" width="${w}" height="14" rx="4" fill="var(--panel)" stroke="var(--accent)" stroke-width="1.2"/><text x="${x(i).toFixed(1)}" y="${(cy+3).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="var(--accent)">${r.rank}</text></g>`;
       cols+=`<rect class="pcol" x="${(padL+plotW*i/n).toFixed(1)}" y="${padT}" width="${(plotW/n).toFixed(1)}" height="${plotH}" data-cap="${ds} : +${fmt(r.pts)} pts · ${r.rank}ᵉ · total ${fmt(r.cum)}"/>`;
-    } else {const ABBR={Seizièmes:'16es',Huitièmes:'8es',Quarts:'Quarts',Demies:'Demies',Finale:'Finale'};
+    } else {
       bars+=`<circle cx="${x(i).toFixed(1)}" cy="${baseY.toFixed(1)}" r="1.4" fill="var(--line)"/>`;
-      if(r.label)bars+=`<text x="${x(i).toFixed(1)}" y="${(H-4).toFixed(1)}" text-anchor="middle" font-size="7" fill="var(--boost)">${ABBR[r.label]||r.label}</text>`;
+      if(r.label&&r.label!==lastKO){bars+=`<text x="${x(i).toFixed(1)}" y="${(H-4).toFixed(1)}" text-anchor="middle" font-size="7" fill="var(--boost)">${ABBR[r.label]||r.label}</text>`;lastKO=r.label;}
       cols+=`<rect class="pcol" x="${(padL+plotW*i/n).toFixed(1)}" y="${padT}" width="${(plotW/n).toFixed(1)}" height="${plotH}" data-cap="${r.label?r.label:ds} : à venir"/>`;}
   });
   const line=linePts.length>1?`<polyline points="${linePts.join(' ')}" fill="none" stroke="var(--accent)" stroke-width="2"/>`:'';
