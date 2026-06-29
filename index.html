@@ -270,6 +270,7 @@ ALL_PLAYERS.forEach(p=>{const rp=R32_PREDS[p.name];if(rp)for(const k in rp)p.pre
 const MATCHES = DATA.matches;
 const COTE={};MATCHES.forEach(m=>COTE[m.num]=m);
 const S16NUMS=MATCHES.filter(m=>m.round==='s16').map(m=>m.num);
+const MATCHES_BYDATE=MATCHES.slice().sort((a,b)=>new Date(a.date)-new Date(b.date)||a.num-b.num);
 function mdKey(iso){const a=iso.split("T");const d=a[0].split("-").map(Number);const p=a[1].split(":").map(Number);const ms=Date.UTC(d[0],d[1]-1,d[2],p[0],p[1])-9*3600000;const dt=new Date(ms);return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth()+1).padStart(2,"0")}-${String(dt.getUTCDate()).padStart(2,"0")}`;}
 const MD={};MATCHES.forEach(m=>{const k=mdKey(m.date);(MD[k]=MD[k]||[]).push(m);});
 const MDKEYS=Object.keys(MD).sort();
@@ -427,59 +428,74 @@ function playerStats(p){
   const total=group+s16+h8+q4+d2+f+qS+qH+qQ+qD+qV+qBonus;
   return{p,total,group,bons,exacts,correct,played,fiab,maxm,cur,best,worst,s16,h8,q4,d2,f,qS,qH,qQ,qD,qV,qBonus};
 }
-function ptsOnMatches(pl,nums){let s=0;for(const n of nums){if(!hasResult(n))continue;const pr=pl.preds[n];if(!pr)continue;const m=COTE[n],r=results[n],rh=+r.h,ra=+r.a;const po=outcome(pr[0],pr[1]),ro=outcome(rh,ra);if(po===ro){const exact=(pr[0]===rh&&pr[1]===ra);const ko=m.round==='s16';let p=(exact?(ko?10:5):(ko?6:3))*oddFor(m,po);if(!ko&&pl.boosts.indexOf(n)>=0)p*=2;s+=p;}}return s;}
-function allStats(pl,lcNums,real,r16set){
-  let group=0,bons=0,exacts=0,played=0,maxm=0;const seq=[];
-  for(let n=1;n<=72;n++){
-    if(!hasResult(n))continue; const pr=pl.preds[n]; if(!pr){continue;}
-    played++; const m=COTE[n], r=results[n], rh=+r.h, ra=+r.a;
-    const po=outcome(pr[0],pr[1]), ro=outcome(rh,ra);
-    if(po===ro){const exact=(pr[0]===rh&&pr[1]===ra);let pts=(exact?5:3)*oddFor(m,po);if(pl.boosts.indexOf(n)>=0)pts*=2;
-      group+=pts;seq.push(true);if(exact)exacts++;else bons++;maxm=Math.max(maxm,pts);}
-    else seq.push(false);
-  }
+// Résultat d'un match pour un joueur (round-aware) : {correct, exact, pts}
+function matchResult(pl,n){if(!hasResult(n))return null;const pr=pl.preds[n];if(!pr)return null;const m=COTE[n];if(!m)return null;const r=results[n],rh=+r.h,ra=+r.a;
+  const correct=outcome(pr[0],pr[1])===outcome(rh,ra);const exact=correct&&pr[0]===rh&&pr[1]===ra;let pts=0;
+  if(correct){const ko=!!m.round&&m.round!=='poules';pts=(exact?(ko?10:5):(ko?6:3))*oddFor(m,outcome(rh,ra));if(!ko&&pl.boosts.indexOf(n)>=0)pts*=2;}
+  return {correct,exact,pts};}
+function ptsOnMatches(pl,nums){let s=0;for(const n of nums){const r=matchResult(pl,n);if(r)s+=r.pts;}return s;}
+// Vainqueurs des matchs d'un tour (équipes qui accèdent au tour suivant) — score décisif
+function roundWinners(tag){const s=new Set();MATCHES.forEach(m=>{if(m.round!==tag||!hasResult(m.num))return;const r=results[m.num],h=+r.h,a=+r.a;if(h>a)s.add(m.home);else if(a>h)s.add(m.away);});return s;}
+// Vainqueur de la Coupe = vainqueur du DERNIER match du tour "f" (la finale, pas le match 3e place)
+function championSet(){const fm=MATCHES.filter(m=>m.round==='f'&&hasResult(m.num));if(!fm.length)return new Set();fm.sort((a,b)=>new Date(b.date)-new Date(a.date));const m=fm[0],r=results[m.num],h=+r.h,a=+r.a;const s=new Set();if(h>a)s.add(m.home);else if(a>h)s.add(m.away);return s;}
+// Points qualif génériques d'un tour : mult × cote[ci] par équipe du bracket atteignant ce tour (sans bonus)
+function qualPointsRound(pl,key,qset,mult,ci){const b=ALL_BRACKETS[pl.name];if(!b)return{pts:0,nb:0};const sel=key==='winner'?(b.winner?[b.winner]:[]):(b[key]||[]);let pts=0,nb=0;
+  sel.forEach(t=>{if(qset.has(t)){const rc=QCOTES[t];if(rc){pts+=mult*rc[ci];nb++;}}});return{pts:Math.round(pts*10)/10,nb};}
+function allStats(pl,lcNums,real,qsets){
+  let bons=0,exacts=0,played=0,maxm=0;const seq=[];const rp={poules:0,s16:0,h8:0,q4:0,d2:0,f:0};
+  MATCHES_BYDATE.forEach(m=>{const res=matchResult(pl,m.num);if(!res)return;
+    played++;seq.push(res.correct);const rk=m.round||'poules';rp[rk]=(rp[rk]||0)+res.pts;
+    if(res.correct){if(res.exact)exacts++;else bons++;if(res.pts>maxm)maxm=res.pts;}});
   let best=0,worst=0,run=0,rt=null;
   seq.forEach(w=>{if(w){run=rt==="W"?run+1:1;rt="W";best=Math.max(best,run);}else{run=rt==="L"?run+1:1;rt="L";worst=Math.max(worst,run);}});
   let cur=0;if(seq.length){const last=seq[seq.length-1];let k=seq.length-1,c=0;while(k>=0&&seq[k]===last){c++;k--;}cur=last?c:-c;}
   const correct=bons+exacts,fiab=played?Math.round(correct/played*100):0;
+  const R=v=>Math.round(v*10)/10;
+  const group=R(rp.poules),s16=R(rp.s16),h8=R(rp.h8),q4=R(rp.q4),d2=R(rp.d2),f=R(rp.f);
   const q=real?qualPointsR32(pl,real):{qS:0,qBonus:0,nb:0};
-  const qh=r16set?qualPointsR16(pl,r16set):{qH:0,nb:0};
-  const s16m=Math.round(ptsOnMatches(pl,S16NUMS)*10)/10;
-  const total=Math.round((group+s16m+q.qS+q.qBonus+qh.qH)*10)/10;
-  const lastDayPts=ptsOnMatches(pl,lcNums||[]);const prevTotal=Math.round((total-lastDayPts)*10)/10;
-  return{name:pl.name,team:pl.team,isTeam:pl.isTeam,total,group,bons,exacts,correct,played,fiab,maxm,cur,best,worst,lastDayPts,prevTotal,s16:s16m,h8:0,q4:0,d2:0,f:0,qS:q.qS,qStot:Math.round((q.qS+q.qBonus)*10)/10,qNb:q.nb,qH:qh.qH,qHNb:qh.nb,qQ:0,qD:0,qV:0,qBonus:q.qBonus};
+  const z={pts:0,nb:0};
+  const qH=qsets?qualPointsRound(pl,'r16',qsets.r16,3,1):z, qQ=qsets?qualPointsRound(pl,'qf',qsets.qf,4,2):z,
+        qD=qsets?qualPointsRound(pl,'sf',qsets.sf,5,3):z, qF=qsets?qualPointsRound(pl,'final',qsets.final,6,4):z,
+        qV=qsets?qualPointsRound(pl,'winner',qsets.champ,7,5):z;
+  const total=R(group+s16+h8+q4+d2+f+q.qS+q.qBonus+qH.pts+qQ.pts+qD.pts+qF.pts+qV.pts);
+  const lastDayPts=ptsOnMatches(pl,lcNums||[]);const prevTotal=R(total-lastDayPts);
+  return{name:pl.name,team:pl.team,isTeam:pl.isTeam,total,group,bons,exacts,correct,played,fiab,maxm,cur,best,worst,lastDayPts,prevTotal,
+    s16,h8,q4,d2,f,
+    qStot:R(q.qS+q.qBonus),qNb:q.nb,qH:qH.pts,qHNb:qH.nb,qQ:qQ.pts,qQNb:qQ.nb,qD:qD.pts,qDNb:qD.nb,qF:qF.pts,qFNb:qF.nb,qV:qV.pts,qVNb:qV.nb,qBonus:q.qBonus};
 }
 function renderClassement(){
   const lc=lastActiveMD();const lcNums=lc?MD[lc].map(m=>m.num):[];const hasEvo=!!lc;
   const real=realQualif();const nQual=real.qualified.size;
-  const r16set=r16Qualifiers();const nR16=r16set.size;
-  const all=ALL_PLAYERS.map(p=>allStats(p,lcNums,real,r16set)).sort((a,b)=>b.total-a.total);
+  const qsets={r16:roundWinners('s16'),qf:roundWinners('h8'),sf:roundWinners('q4'),final:roundWinners('d2'),champ:championSet()};
+  const nR16=qsets.r16.size,nQF=qsets.qf.size,nSF=qsets.sf.size,nFin=qsets.final.size,nChamp=qsets.champ.size;
+  const all=ALL_PLAYERS.map(p=>allStats(p,lcNums,real,qsets)).sort((a,b)=>b.total-a.total);
   all.forEach((r,i)=>r.rank=i+1);
   const byPrev=[...all].sort((a,b)=>b.prevTotal-a.prevTotal);const PR={};byPrev.forEach((r,i)=>PR[r.name]=i+1);all.forEach(r=>{r.dRank=PR[r.name]-r.rank;});
   const played=Math.max(0,...all.map(r=>r.played));
-  document.getElementById("cl-sub").textContent=played?`· ${played} match(s) de poule joué(s) · ${all.length} participants`:`· ${all.length} participants`;
+  document.getElementById("cl-sub").textContent=played?`· ${played} match(s) joué(s) · ${all.length} participants`:`· ${all.length} participants`;
   let rows=all;
   if(clFilter==="team") rows=rows.filter(r=>r.isTeam);
   if(clSearch) rows=rows.filter(r=>r.name.toLowerCase().includes(clSearch)||(r.team||"").toLowerCase().includes(clSearch));
   const sk=clSort.key,sdir=clSort.dir;
   rows=[...rows].sort((a,b)=>sk==='name'?sdir*a.name.localeCompare(b.name,'fr'):sdir*((a[sk]||0)-(b[sk]||0)));
   const serie=v=>{const c=v>0?"pos":v<0?"neg":"zero";return `<span class="${c}">${v>0?"+":""}${v}</span>`;};
-  const COLS=[['Rang','rank'],['Joueur','name','jl'],['Points','total'],['Fiab.','fiab'],['Détail','correct'],['Tout-pile','exacts'],['Max/match','maxm'],['Série','cur'],['Meill.','best'],['Pire','worst'],['1à72','group','sep'],['S16','s16'],['H8','h8'],['Q4','q4'],['D2','d2'],['Finale','f'],['S','qStot','sep'],['H','qH'],['Q','qQ'],['D','qD'],['V','qV']];
+  const COLS=[['Rang','rank'],['Joueur','name','jl'],['Points','total'],['Fiab.','fiab'],['Détail','correct'],['Tout-pile','exacts'],['Max/match','maxm'],['Série','cur'],['Meill.','best'],['Pire','worst'],['1à72','group','sep'],['S16','s16'],['H8','h8'],['Q4','q4'],['D2','d2'],['Finale','f'],['S','qStot','sep'],['H','qH'],['Q','qQ'],['D','qD'],['F','qF'],['V','qV']];
   const colsH=COLS.map(([lbl,k,cl])=>{const cls=['sortable'];if(cl==='sep')cls.push('sep');if(cl==='jl')cls.push('jl');if(clSort.key===k)cls.push('sorted');const arr=clSort.key===k?(clSort.dir<0?' ▼':' ▲'):'';const ti=k==='qStot'?' title="Seizièmes : points cote + bonus position (qualifiés trouvés / qualifiés connus)"':'';return `<th class="${cls.join(' ')}" data-sk="${k}"${ti}>${lbl}${arr}</th>`;}).join("");
-  let h=`<thead><tr class="grp"><th colspan="10">Profil</th><th colspan="6" class="sep">Détail match (points)</th><th colspan="5" class="sep">Détail qualifications</th></tr>
+  let h=`<thead><tr class="grp"><th colspan="10">Profil</th><th colspan="6" class="sep">Détail match (points)</th><th colspan="6" class="sep">Détail qualifications</th></tr>
     <tr class="cols">${colsH}</tr></thead><tbody>`;
   const bestOf=(k,dir)=>{const v=rows.map(r=>r[k]);if(new Set(v).size<=1)return null;return dir==='min'?Math.min(...v):Math.max(...v);};
-  const LD={total:bestOf('total','max'),fiab:bestOf('fiab','max'),correct:bestOf('correct','max'),exacts:bestOf('exacts','max'),maxm:bestOf('maxm','max'),cur:bestOf('cur','max'),best:bestOf('best','max'),worst:bestOf('worst','min'),group:bestOf('group','max'),qStot:bestOf('qStot','max'),qH:bestOf('qH','max')};
+  const LD={total:bestOf('total','max'),fiab:bestOf('fiab','max'),correct:bestOf('correct','max'),exacts:bestOf('exacts','max'),maxm:bestOf('maxm','max'),cur:bestOf('cur','max'),best:bestOf('best','max'),worst:bestOf('worst','min'),group:bestOf('group','max'),qStot:bestOf('qStot','max'),qH:bestOf('qH','max'),qQ:bestOf('qQ','max'),qD:bestOf('qD','max'),qF:bestOf('qF','max'),qV:bestOf('qV','max')};
   const isLead=(k,val,minpos)=>{const b=LD[k];if(b===null)return false;if(minpos&&b<=0)return false;return val===b;};
-  const WO={total:bestOf('total','min'),fiab:bestOf('fiab','min'),correct:bestOf('correct','min'),exacts:bestOf('exacts','min'),maxm:bestOf('maxm','min'),cur:bestOf('cur','min'),best:bestOf('best','min'),worst:bestOf('worst','max'),group:bestOf('group','min'),qStot:bestOf('qStot','min'),qH:bestOf('qH','min')};
+  const WO={total:bestOf('total','min'),fiab:bestOf('fiab','min'),correct:bestOf('correct','min'),exacts:bestOf('exacts','min'),maxm:bestOf('maxm','min'),cur:bestOf('cur','min'),best:bestOf('best','min'),worst:bestOf('worst','max'),group:bestOf('group','min'),qStot:bestOf('qStot','min'),qH:bestOf('qH','min'),qQ:bestOf('qQ','min'),qD:bestOf('qD','min'),qF:bestOf('qF','min'),qV:bestOf('qV','min')};
   const isLag=(k,val)=>{const w=WO[k];if(w===null)return false;return val===w;};
   const evo=d=>d>0?` <span class="evo up">(▲${d})</span>`:d<0?` <span class="evo down">(▼${-d})</span>`:` <span class="evo eq">(=)</span>`;
   rows.forEach(r=>{const i=r.rank-1;const medal=i<3?`<span class="medal r${i+1}">${i+1}</span>`:`<span>${r.rank}</span>`;
     const L=(k,v,mp)=>isLead(k,v,mp)?' lead':(isLag(k,v)?' lag':'');
+    const qcell=(k,val,nb,nset,sep)=>{const cls=[sep?'sep':'',L(k,val,true).trim()].filter(Boolean).join(' ');return `<td${cls?` class="${cls}"`:''}>${fmt(val)}${nset>0?` <span style="color:var(--muted)">(${nb}/${nset})</span>`:""}</td>`;};
     h+=`<tr class="${r.isTeam?'team':''}"><td class="rank">${medal}${hasEvo?evo(r.dRank):""}</td><td class="name clickable" data-name="${r.name}">${r.name}${clOpen.has(r.name)?" ▾":""}</td><td class="pts${L('total',r.total,true)}">${fmt(r.total)}${hasEvo?` <span class="evo pts">(+${fmt(r.lastDayPts)})</span>`:""}</td><td class="${L('fiab',r.fiab,true).trim()}">${r.fiab}%</td>
     <td class="${L('correct',r.correct,true).trim()}"><strong>${r.correct}</strong> <span style="color:var(--muted)">/ ${r.played}</span></td><td class="${L('exacts',r.exacts,true).trim()}">${r.exacts}</td><td class="${L('maxm',r.maxm,true).trim()}">${fmt(r.maxm)}</td><td class="${L('cur',r.cur,true).trim()}">${serie(r.cur)}</td><td class="${L('best',r.best,true).trim()}">${r.best}</td><td class="${L('worst',r.worst,false).trim()}">${r.worst}</td>
     <td class="sep${L('group',r.group,true)}"><strong>${fmt(r.group)}</strong></td><td>${fmt(r.s16)}</td><td>${fmt(r.h8)}</td><td>${fmt(r.q4)}</td><td>${fmt(r.d2)}</td><td>${fmt(r.f)}</td>
-    <td class="sep${L('qStot',r.qStot,true)}">${fmt(r.qStot)}${nQual>0?` <span style="color:var(--muted)">(${r.qNb}/${nQual})</span>`:""}</td><td class="${L('qH',r.qH,true).trim()}">${fmt(r.qH)}${nR16>0?` <span style="color:var(--muted)">(${r.qHNb}/${nR16})</span>`:""}</td><td>${fmt(r.qQ)}</td><td>${fmt(r.qD)}</td><td>${fmt(r.qV)}</td></tr>`;
+    ${qcell('qStot',r.qStot,r.qNb,nQual,true)}${qcell('qH',r.qH,r.qHNb,nR16)}${qcell('qQ',r.qQ,r.qQNb,nQF)}${qcell('qD',r.qD,r.qDNb,nSF)}${qcell('qF',r.qF,r.qFNb,nFin)}${qcell('qV',r.qV,r.qVNb,nChamp)}</tr>`;
     if(clOpen.has(r.name))h+=`<tr class="detail-row"><td colspan="${COLS.length}">${playerDetailHTML(r.name)}</td></tr>`;});
   h+="</tbody>";const clt=document.getElementById("cl-table");clt.innerHTML=h;
   clt.querySelectorAll("th.sortable").forEach(t=>t.onclick=()=>setSort(t.dataset.sk));
