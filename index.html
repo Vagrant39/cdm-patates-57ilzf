@@ -336,7 +336,7 @@ function dateLabel(iso){const d=new Date(iso);return `${DOW[d.getDay()]} ${d.get
 function dateShort(iso){const d=new Date(iso);return `${d.getDate()} ${MON[d.getMonth()]} ${String(d.getHours()).padStart(2,"0")}h${String(d.getMinutes()).padStart(2,"0")}`;}
 
 /* ---------- Moteur qualification (format 2026 : 2 premiers de chaque groupe + 8 meilleurs 3es) ---------- */
-const GROUP_KEYS=[...new Set(MATCHES.map(m=>m.group))].sort();
+const GROUP_KEYS=[...new Set(MATCHES.filter(m=>m.num<=72).map(m=>m.group))].filter(g=>g).sort();
 const GROUP_MATCHES={},GROUP_TEAMS={};
 GROUP_KEYS.forEach(g=>{GROUP_MATCHES[g]=MATCHES.filter(m=>m.group===g);const s=new Set();GROUP_MATCHES[g].forEach(m=>{s.add(m.home);s.add(m.away);});GROUP_TEAMS[g]=[...s];});
 const N_THIRDS=8;
@@ -637,7 +637,7 @@ function renderDayTable(idx){
 
 /* ---------- Filtres ---------- */
 function buildFilter(elId,current,onpick){
-  const groups=[...new Set(MATCHES.map(m=>m.group))].sort();const el=document.getElementById(elId);if(!el)return;
+  const groups=[...new Set(MATCHES.filter(m=>m.num<=72).map(m=>m.group))].filter(g=>g).sort();const el=document.getElementById(elId);if(!el)return;
   el.innerHTML=`<button data-g="ALL" class="${current==='ALL'?'active':''}">Tous</button>`+groups.map(g=>`<button data-g="${g}" class="${current===g?'active':''}">${g}</button>`).join("");
   el.querySelectorAll("button").forEach(b=>b.onclick=()=>{el.querySelectorAll("button").forEach(x=>x.classList.toggle("active",x===b));onpick(b.dataset.g);});
 }
