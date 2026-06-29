@@ -377,11 +377,11 @@ function clinchedTop2(g,score){
 }
 // onlyComplete=true : côté résultats réels (qualif d'office + classe figée si poule finie).
 // onlyComplete=false : côté pronostics d'un joueur (72 scores complets → classement total).
-function computeQualif(score,onlyComplete){
+function computeQualif(score,onlyComplete,noClinch){
   const tables={},pos={},qualified=new Set();let allDone=true;
   GROUP_KEYS.forEach(g=>{const arr=groupTable(g,score);tables[g]=arr;const done=groupComplete(g,score);if(!done)allDone=false;
     if(onlyComplete){
-      clinchedTop2(g,score).forEach(t=>qualified.add(t));         // qualifiés d'office (classe pas encore sûre)
+      if(!noClinch)clinchedTop2(g,score).forEach(t=>qualified.add(t));   // qualifiés d'office (classe pas encore sûre)
       if(done){qualified.add(arr[0].team);qualified.add(arr[1].team);pos[arr[0].team]='1';pos[arr[1].team]='2';}
     } else {
       if(arr[0]){pos[arr[0].team]='1';qualified.add(arr[0].team);}
@@ -435,7 +435,7 @@ function matchResult(pl,n){if(!hasResult(n))return null;const pr=pl.preds[n];if(
   return {correct,exact,pts};}
 function ptsOnMatches(pl,nums){let s=0;for(const n of nums){const r=matchResult(pl,n);if(r)s+=r.pts;}return s;}
 // Vainqueurs des matchs d'un tour (équipes qui accèdent au tour suivant) — score décisif
-function roundWinners(tag){const s=new Set();MATCHES.forEach(m=>{if(m.round!==tag||!hasResult(m.num))return;const r=results[m.num],h=+r.h,a=+r.a;if(h>a)s.add(m.home);else if(a>h)s.add(m.away);});return s;}
+function roundWinners(tag,res){res=res||results;const s=new Set();MATCHES.forEach(m=>{if(m.round!==tag)return;const r=res[m.num];if(!r||r.h==null||r.h===''||r.a==null||r.a==='')return;const h=+r.h,a=+r.a;if(h>a)s.add(m.home);else if(a>h)s.add(m.away);});return s;}
 // Vainqueur de la Coupe = vainqueur du DERNIER match du tour "f" (la finale, pas le match 3e place)
 function championSet(){const fm=MATCHES.filter(m=>m.round==='f'&&hasResult(m.num));if(!fm.length)return new Set();fm.sort((a,b)=>new Date(b.date)-new Date(a.date));const m=fm[0],r=results[m.num],h=+r.h,a=+r.a;const s=new Set();if(h>a)s.add(m.home);else if(a>h)s.add(m.away);return s;}
 // Points qualif génériques d'un tour : mult × cote[ci] par équipe du bracket atteignant ce tour (sans bonus)
@@ -504,14 +504,20 @@ function renderClassement(){
 }
 /* ---------- Panneau détail joueur ---------- */
 function playerProgress(name){
-  // Toutes les journées (jouées ET à venir) pour une largeur stable ; chaque journée a son tour
-  const cums={};ALL_PLAYERS.forEach(p=>cums[p.name]=0);const rows=[];
+  // Toutes les journées (jouées ET à venir) ; rang = total cumulé (points de match + qualif) à chaque journée
+  const me0=ALL_PLAYERS.find(p=>p.name===name);const rows=[];
+  const cumM={};ALL_PLAYERS.forEach(p=>cumM[p.name]=0);const resAcc={};
   MDKEYS.forEach(k=>{const nums=MD[k].map(m=>m.num);const played=MD[k].some(m=>hasResult(m.num));
     const round=(MD[k][0]&&MD[k][0].round)||'poules';
-    if(played){let dayPts=0;ALL_PLAYERS.forEach(p=>{const dp=ptsOnMatches(p,nums);cums[p.name]+=dp;if(p.name===name)dayPts=dp;});
-      const me=cums[name];let rank=1;ALL_PLAYERS.forEach(p=>{if(cums[p.name]>me)rank++;});
-      rows.push({key:k,played:true,pts:dayPts,cum:me,rank,round});}
-    else rows.push({key:k,played:false,round});});
+    if(!played){rows.push({key:k,played:false,round});return;}
+    nums.forEach(n=>{if(hasResult(n))resAcc[n]=results[n];});
+    ALL_PLAYERS.forEach(p=>{cumM[p.name]+=ptsOnMatches(p,nums);});
+    const realD=computeQualif(n=>resAcc[n]?{h:+resAcc[n].h,a:+resAcc[n].a}:null,true,true);
+    const r16D=roundWinners('s16',resAcc),qfD=roundWinners('h8',resAcc),sfD=roundWinners('q4',resAcc),fnD=roundWinners('d2',resAcc),chD=roundWinners('f',resAcc);
+    const tot={};ALL_PLAYERS.forEach(p=>{const q=qualPointsR32(p,realD);
+      tot[p.name]=cumM[p.name]+q.qS+q.qBonus+qualPointsRound(p,'r16',r16D,3,1).pts+qualPointsRound(p,'qf',qfD,4,2).pts+qualPointsRound(p,'sf',sfD,5,3).pts+qualPointsRound(p,'final',fnD,6,4).pts+qualPointsRound(p,'winner',chD,7,5).pts;});
+    const meTot=tot[name];let rank=1;ALL_PLAYERS.forEach(p=>{if(tot[p.name]>meTot)rank++;});
+    rows.push({key:k,played:true,pts:Math.round(ptsOnMatches(me0,nums)*10)/10,cum:Math.round(meTot*10)/10,rank,round});});
   const L2R={'Seizièmes':'s16','Huitièmes':'h8','Quarts':'q4','Demies':'d2','3e place':'f','Finale':'f'};
   KO_MD.forEach(ko=>rows.push({key:ko.key,played:false,round:L2R[ko.label]||'f'}));
   return rows;
