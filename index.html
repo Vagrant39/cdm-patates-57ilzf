@@ -437,7 +437,14 @@ function ptsOnMatches(pl,nums){let s=0;for(const n of nums){const r=matchResult(
 // Vainqueurs des matchs d'un tour (équipes qui accèdent au tour suivant) — score décisif
 function roundWinners(tag,res){res=res||results;const s=new Set();MATCHES.forEach(m=>{if(m.round!==tag)return;const r=res[m.num];if(!r||r.h==null||r.h===''||r.a==null||r.a==='')return;const h=+r.h,a=+r.a;if(h>a)s.add(m.home);else if(a>h)s.add(m.away);});return s;}
 // Vainqueur de la Coupe = vainqueur du DERNIER match du tour "f" (la finale, pas le match 3e place)
-function championSet(){const fm=MATCHES.filter(m=>m.round==='f'&&hasResult(m.num));if(!fm.length)return new Set();fm.sort((a,b)=>new Date(b.date)-new Date(a.date));const m=fm[0],r=results[m.num],h=+r.h,a=+r.a;const s=new Set();if(h>a)s.add(m.home);else if(a>h)s.add(m.away);return s;}
+function championSet(res){res=res||results;const fm=MATCHES.filter(m=>m.round==='f'&&res[m.num]&&res[m.num].h!=null&&res[m.num].h!=='');if(!fm.length)return new Set();fm.sort((a,b)=>new Date(b.date)-new Date(a.date));const m=fm[0],r=res[m.num],h=+r.h,a=+r.a;const s=new Set();if(h>a)s.add(m.home);else if(a>h)s.add(m.away);return s;}
+// Contexte qualif pour un sous-ensemble de résultats + total d'un joueur à cet instant (cohérent avec le graphe)
+function qctxOf(res){return {real:computeQualif(n=>res[n]&&res[n].h!=null&&res[n].h!==''?{h:+res[n].h,a:+res[n].a}:null,true,true),r16:roundWinners('s16',res),qf:roundWinners('h8',res),sf:roundWinners('q4',res),final:roundWinners('d2',res),champ:championSet(res)};}
+function playerTotalAsOf(pl,res,ctx){let m=0;
+  MATCHES.forEach(mt=>{const r=res[mt.num];if(!r||r.h==null||r.h===''||r.a==null||r.a==='')return;const pr=pl.preds[mt.num];if(!pr)return;const rh=+r.h,ra=+r.a;
+    if(outcome(pr[0],pr[1])===outcome(rh,ra)){const ex=pr[0]===rh&&pr[1]===ra;const ko=!!mt.round&&mt.round!=='poules';let p=(ex?(ko?10:5):(ko?6:3))*oddFor(mt,outcome(rh,ra));if(!ko&&pl.boosts.indexOf(mt.num)>=0)p*=2;m+=p;}});
+  const q=qualPointsR32(pl,ctx.real);
+  return m+q.qS+q.qBonus+qualPointsRound(pl,'r16',ctx.r16,3,1).pts+qualPointsRound(pl,'qf',ctx.qf,4,2).pts+qualPointsRound(pl,'sf',ctx.sf,5,3).pts+qualPointsRound(pl,'final',ctx.final,6,4).pts+qualPointsRound(pl,'winner',ctx.champ,7,5).pts;}
 // Points qualif génériques d'un tour : mult × cote[ci] par équipe du bracket atteignant ce tour (sans bonus)
 function qualPointsRound(pl,key,qset,mult,ci){const b=ALL_BRACKETS[pl.name];if(!b)return{pts:0,nb:0};const sel=key==='winner'?(b.winner?[b.winner]:[]):(b[key]||[]);let pts=0,nb=0;
   sel.forEach(t=>{if(qset.has(t)){const rc=QCOTES[t];if(rc){pts+=mult*rc[ci];nb++;}}});return{pts:Math.round(pts*10)/10,nb};}
@@ -470,7 +477,11 @@ function renderClassement(){
   const nR16=qsets.r16.size,nQF=qsets.qf.size,nSF=qsets.sf.size,nFin=qsets.final.size,nChamp=qsets.champ.size;
   const all=ALL_PLAYERS.map(p=>allStats(p,lcNums,real,qsets)).sort((a,b)=>b.total-a.total);
   all.forEach((r,i)=>r.rank=i+1);
-  const byPrev=[...all].sort((a,b)=>b.prevTotal-a.prevTotal);const PR={};byPrev.forEach((r,i)=>PR[r.name]=i+1);all.forEach(r=>{r.dRank=PR[r.name]-r.rank;});
+  // Rang/gain précédents = état AVANT la dernière journée (résultats - matchs de cette journée), qualif incluse
+  const resPrev={};for(const n in results){if(lcNums.indexOf(+n)<0)resPrev[n]=results[n];}
+  const ctxPrev=qctxOf(resPrev);const prevT={};ALL_PLAYERS.forEach(p=>{prevT[p.name]=playerTotalAsOf(p,resPrev,ctxPrev);});
+  all.forEach(r=>{r.dayGain=Math.round((r.total-prevT[r.name])*10)/10;});
+  const byPrev=[...all].sort((a,b)=>prevT[b.name]-prevT[a.name]);const PR={};byPrev.forEach((r,i)=>PR[r.name]=i+1);all.forEach(r=>{r.dRank=PR[r.name]-r.rank;});
   const played=Math.max(0,...all.map(r=>r.played));
   document.getElementById("cl-sub").textContent=played?`· ${played} match(s) joué(s) · ${all.length} participants`:`· ${all.length} participants`;
   let rows=all;
@@ -492,7 +503,7 @@ function renderClassement(){
   rows.forEach(r=>{const i=r.rank-1;const medal=i<3?`<span class="medal r${i+1}">${i+1}</span>`:`<span>${r.rank}</span>`;
     const L=(k,v,mp)=>isLead(k,v,mp)?' lead':(isLag(k,v)?' lag':'');
     const qcell=(k,val,nb,nset,sep)=>{const cls=[sep?'sep':'',L(k,val,true).trim()].filter(Boolean).join(' ');return `<td${cls?` class="${cls}"`:''}>${fmt(val)}${nset>0?` <span style="color:var(--muted)">(${nb}/${nset})</span>`:""}</td>`;};
-    h+=`<tr class="${r.isTeam?'team':''}"><td class="rank">${medal}${hasEvo?evo(r.dRank):""}</td><td class="name clickable" data-name="${r.name}">${r.name}${clOpen.has(r.name)?" ▾":""}</td><td class="pts${L('total',r.total,true)}">${fmt(r.total)}${hasEvo?` <span class="evo pts">(+${fmt(r.lastDayPts)})</span>`:""}</td><td class="${L('fiab',r.fiab,true).trim()}">${r.fiab}%</td>
+    h+=`<tr class="${r.isTeam?'team':''}"><td class="rank">${medal}${hasEvo?evo(r.dRank):""}</td><td class="name clickable" data-name="${r.name}">${r.name}${clOpen.has(r.name)?" ▾":""}</td><td class="pts${L('total',r.total,true)}">${fmt(r.total)}${hasEvo&&r.dayGain?` <span class="evo pts">(+${fmt(r.dayGain)})</span>`:""}</td><td class="${L('fiab',r.fiab,true).trim()}">${r.fiab}%</td>
     <td class="${L('correct',r.correct,true).trim()}">${r.correct} <span style="color:var(--muted)">/ ${r.played}</span></td><td class="${L('exacts',r.exacts,true).trim()}">${r.exacts}</td><td class="${L('maxm',r.maxm,true).trim()}">${fmt(r.maxm)}</td><td class="${L('cur',r.cur,true).trim()}">${serie(r.cur)}</td><td class="${L('best',r.best,true).trim()}">${r.best}</td><td class="${L('worst',r.worst,false).trim()}">${r.worst}</td>
     <td class="sep${L('group',r.group,true)}">${fmt(r.group)}</td><td class="${L('s16',r.s16,true).trim()}">${fmt(r.s16)}</td><td class="${L('h8',r.h8,true).trim()}">${fmt(r.h8)}</td><td class="${L('q4',r.q4,true).trim()}">${fmt(r.q4)}</td><td class="${L('d2',r.d2,true).trim()}">${fmt(r.d2)}</td><td class="${L('f',r.f,true).trim()}">${fmt(r.f)}</td>
     ${qcell('qStot',r.qStot,r.qNb,nQual,true)}${qcell('qH',r.qH,r.qHNb,nR16)}${qcell('qQ',r.qQ,r.qQNb,nQF)}${qcell('qD',r.qD,r.qDNb,nSF)}${qcell('qF',r.qF,r.qFNb,nFin)}${qcell('qV',r.qV,r.qVNb,nChamp)}</tr>`;
