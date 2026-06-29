@@ -271,7 +271,7 @@ const ALL_BRACKETS={"Ad9Performance":{"r32":["Allemagne","Paraguay","France","Su
 let clFilter='team', clSearch='';
 let clSort={key:'total',dir:-1};
 let clOpen=new Set();
-let tpEvoOpen=false,tpZoom=true,tpSel=null;
+let tpEvoOpen=false,tpSel=null;
 function setSort(k){if(clSort.key===k)clSort.dir*=-1;else clSort={key:k,dir:(k==='name'||k==='rank')?1:-1};renderClassement();}
 const PLAYERS = DATA.players;
 const R32_MATCHES=[{"num":73,"date":"2026-06-28T21:00:00","home":"Afrique du Sud","away":"Canada","c1":6.0,"cN":3.7,"c2":1.7},{"num":74,"date":"2026-06-29T19:00:00","home":"Brésil","away":"Japon","c1":1.7,"cN":4.0,"c2":5.0},{"num":75,"date":"2026-06-29T22:30:00","home":"Allemagne","away":"Paraguay","c1":1.4,"cN":5.2,"c2":9.5},{"num":76,"date":"2026-06-30T03:00:00","home":"Pays-Bas","away":"Maroc","c1":2.2,"cN":3.2,"c2":3.8},{"num":77,"date":"2026-06-30T19:00:00","home":"Côte d'Ivoire","away":"Norvège","c1":3.6,"cN":3.6,"c2":2.1},{"num":78,"date":"2026-06-30T23:00:00","home":"France","away":"Suède","c1":1.3,"cN":6.1,"c2":12.0},{"num":79,"date":"2026-07-01T03:00:00","home":"Mexique","away":"Équateur","c1":2.2,"cN":3.1,"c2":3.9},{"num":80,"date":"2026-07-01T18:00:00","home":"Angleterre","away":"RD Congo","c1":1.3,"cN":5.5,"c2":11.0},{"num":81,"date":"2026-07-01T22:00:00","home":"Belgique","away":"Sénégal","c1":2.1,"cN":3.3,"c2":3.8},{"num":82,"date":"2026-07-02T02:00:00","home":"Etats Unis","away":"Bosnie Herzégovine","c1":1.4,"cN":5.1,"c2":9.0},{"num":83,"date":"2026-07-02T21:00:00","home":"Espagne","away":"Autriche","c1":1.3,"cN":5.2,"c2":11.0},{"num":84,"date":"2026-07-03T01:00:00","home":"Portugal","away":"Croatie","c1":1.9,"cN":3.3,"c2":4.5},{"num":85,"date":"2026-07-03T05:00:00","home":"Suisse","away":"Algérie","c1":1.6,"cN":4.0,"c2":5.7},{"num":86,"date":"2026-07-03T20:00:00","home":"Australie","away":"Egypte","c1":3.3,"cN":3.0,"c2":2.5},{"num":87,"date":"2026-07-04T00:00:00","home":"Argentine","away":"Cap Vert","c1":1.1,"cN":8.2,"c2":22.0},{"num":88,"date":"2026-07-04T03:30:00","home":"Colombie","away":"Ghana","c1":1.8,"cN":3.5,"c2":5.2}];
@@ -613,14 +613,12 @@ function teamEvoChart(){
   const progs=TEAM.map((m,i)=>({name:m.name,fn:m.name.split(' ')[0],col:TP_COLORS[i%TP_COLORS.length],rows:playerProgress(m.name).filter(r=>r.played)}));
   const n=(progs[0]&&progs[0].rows.length)||0;
   if(!n)return '<div class="hint">Pas encore de journée jouée.</div>';
-  let mn=205,mx=1;progs.forEach(p=>p.rows.forEach(r=>{if(r.rank<mn)mn=r.rank;if(r.rank>mx)mx=r.rank;}));
-  const yMin=tpZoom?Math.max(1,mn-2):1, yMax=tpZoom?Math.min(205,mx+2):205;
+  const yMin=1,yMax=205;
   const W=Math.max(340,n*48),H=330,padL=26,padR=62,padB=18,padT=12;
   const plotH=H-padB-padT,plotW=W-padL-padR;
   const x=i=>n>1?padL+plotW*i/(n-1):padL+plotW/2;
-  const ry=rk=>padT+plotH*((rk-yMin)/Math.max(1,(yMax-yMin)));
-  let grid='';const ticks=new Set();for(let t=0;t<=4;t++)ticks.add(Math.round(yMin+(yMax-yMin)*t/4));
-  [...ticks].forEach(rk=>{const y=ry(rk);grid+=`<line x1="${padL}" y1="${y.toFixed(1)}" x2="${(padL+plotW).toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--line)" stroke-width="0.5"/><text x="2" y="${(y+3).toFixed(1)}" font-size="8" fill="var(--muted)">${rk}</text>`;});
+  const ry=rk=>padT+plotH*((rk-yMin)/(yMax-yMin));
+  let grid='';[1,50,100,150,205].forEach(rk=>{const y=ry(rk);grid+=`<line x1="${padL}" y1="${y.toFixed(1)}" x2="${(padL+plotW).toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--line)" stroke-width="0.5"/><text x="2" y="${(y+3).toFixed(1)}" font-size="8" fill="var(--muted)">${rk}</text>`;});
   let lines='',dots='',labels='',legend='';
   progs.forEach(p=>{const sel=tpSel===p.name,dim=tpSel&&!sel,op=dim?0.15:1,sw=sel?3.2:2;
     const pts=p.rows.map((r,i)=>`${x(i).toFixed(1)},${ry(r.rank).toFixed(1)}`).join(' ');
@@ -629,13 +627,12 @@ function teamEvoChart(){
     const li=p.rows.length-1,last=p.rows[li];
     labels+=`<text x="${(x(li)+5).toFixed(1)}" y="${(ry(last.rank)+3).toFixed(1)}" font-size="9" fill="${p.col}" opacity="${op}" font-weight="700">${p.fn}</text>`;
     legend+=`<span class="tpleg${sel?' sel':''}" data-m="${p.name}"><span class="tpdot" style="background:${p.col}"></span>${p.fn} ${last.rank}ᵉ</span>`;});
-  return `<div class="tpchart-wrap"><svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet">${grid}${lines}${dots}${labels}</svg></div><div class="tplegendrow">${legend}</div><div class="plegend">Rang parmi 205 (1 = en tête)${tpZoom?" · échelle ajustée à la Team Patates":" · échelle 1→205"} · touche un nom pour le mettre en avant.</div>`;
+  return `<div class="tpchart-wrap"><svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet">${grid}${lines}${dots}${labels}</svg></div><div class="tplegendrow">${legend}</div><div class="plegend">Rang parmi 205 (1 = en tête), journée par journée · touche un nom pour le mettre en avant.</div>`;
 }
 function renderTeamEvo(){const el=document.getElementById("tp-evo-wrap");if(!el)return;
   if(tpEvoOpen&&clFilter==='team'){
-    el.innerHTML=`<div class="card" style="padding:12px 14px"><div class="tpevo-h"><strong>📈 Évolution des rangs — Team Patates</strong><span style="display:flex;gap:6px"><button id="tp-zoom" class="btn-evo">${tpZoom?'Voir 1→205':'Zoom Team'}</button><button id="tp-evo-close" class="btn-evo">✕</button></span></div>${teamEvoChart()}</div>`;
+    el.innerHTML=`<div class="card" style="padding:12px 14px"><div class="tpevo-h"><strong>📈 Évolution des rangs — Team Patates</strong><button id="tp-evo-close" class="btn-evo">✕ Fermer</button></div>${teamEvoChart()}</div>`;
     const cb=document.getElementById("tp-evo-close");if(cb)cb.onclick=()=>{tpEvoOpen=false;tpSel=null;renderTeamEvo();};
-    const zb=document.getElementById("tp-zoom");if(zb)zb.onclick=()=>{tpZoom=!tpZoom;renderTeamEvo();};
     el.querySelectorAll(".tpleg").forEach(l=>l.onclick=()=>{tpSel=(tpSel===l.dataset.m)?null:l.dataset.m;renderTeamEvo();});
   } else el.innerHTML="";
 }
