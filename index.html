@@ -47,7 +47,7 @@
   table.cl thead tr.cols th.sortable:hover{color:var(--accent2)}
   table.cl thead tr.cols th.sorted{color:var(--accent2)}
   table.cl thead tr.cols th.jl{text-align:left}
-  table.cl td.name{text-align:left;font-weight:700}
+  table.cl td.name{text-align:left}
   table.cl td.rank{font-weight:800;width:54px}
   table.cl td.pts{font-weight:800;color:var(--txt);font-size:15px}
   table.cl td.sep,table.cl th.sep{border-left:1px solid var(--line)}
@@ -55,8 +55,8 @@
   .r1{background:var(--gold)}.r2{background:var(--silver)}.r3{background:var(--bronze)}
   .pos{color:var(--accent)}.neg{color:#ff6b6b}.zero{color:var(--muted)}
   table.cl tr.team td{background:rgba(74,163,255,.12)}
-  table.cl td.lead{color:var(--accent);font-weight:800}
-  table.cl td.lag{color:#ff6b6b;font-weight:800}
+  table.cl td.lead{color:var(--accent)}
+  table.cl td.lag{color:#ff6b6b}
   table.cl tr.team td.name{color:var(--accent2)}
 
   /* Dashboard 2 colonnes */
@@ -493,8 +493,8 @@ function renderClassement(){
     const L=(k,v,mp)=>isLead(k,v,mp)?' lead':(isLag(k,v)?' lag':'');
     const qcell=(k,val,nb,nset,sep)=>{const cls=[sep?'sep':'',L(k,val,true).trim()].filter(Boolean).join(' ');return `<td${cls?` class="${cls}"`:''}>${fmt(val)}${nset>0?` <span style="color:var(--muted)">(${nb}/${nset})</span>`:""}</td>`;};
     h+=`<tr class="${r.isTeam?'team':''}"><td class="rank">${medal}${hasEvo?evo(r.dRank):""}</td><td class="name clickable" data-name="${r.name}">${r.name}${clOpen.has(r.name)?" ▾":""}</td><td class="pts${L('total',r.total,true)}">${fmt(r.total)}${hasEvo?` <span class="evo pts">(+${fmt(r.lastDayPts)})</span>`:""}</td><td class="${L('fiab',r.fiab,true).trim()}">${r.fiab}%</td>
-    <td class="${L('correct',r.correct,true).trim()}"><strong>${r.correct}</strong> <span style="color:var(--muted)">/ ${r.played}</span></td><td class="${L('exacts',r.exacts,true).trim()}">${r.exacts}</td><td class="${L('maxm',r.maxm,true).trim()}">${fmt(r.maxm)}</td><td class="${L('cur',r.cur,true).trim()}">${serie(r.cur)}</td><td class="${L('best',r.best,true).trim()}">${r.best}</td><td class="${L('worst',r.worst,false).trim()}">${r.worst}</td>
-    <td class="sep${L('group',r.group,true)}"><strong>${fmt(r.group)}</strong></td><td class="${L('s16',r.s16,true).trim()}">${fmt(r.s16)}</td><td class="${L('h8',r.h8,true).trim()}">${fmt(r.h8)}</td><td class="${L('q4',r.q4,true).trim()}">${fmt(r.q4)}</td><td class="${L('d2',r.d2,true).trim()}">${fmt(r.d2)}</td><td class="${L('f',r.f,true).trim()}">${fmt(r.f)}</td>
+    <td class="${L('correct',r.correct,true).trim()}">${r.correct} <span style="color:var(--muted)">/ ${r.played}</span></td><td class="${L('exacts',r.exacts,true).trim()}">${r.exacts}</td><td class="${L('maxm',r.maxm,true).trim()}">${fmt(r.maxm)}</td><td class="${L('cur',r.cur,true).trim()}">${serie(r.cur)}</td><td class="${L('best',r.best,true).trim()}">${r.best}</td><td class="${L('worst',r.worst,false).trim()}">${r.worst}</td>
+    <td class="sep${L('group',r.group,true)}">${fmt(r.group)}</td><td class="${L('s16',r.s16,true).trim()}">${fmt(r.s16)}</td><td class="${L('h8',r.h8,true).trim()}">${fmt(r.h8)}</td><td class="${L('q4',r.q4,true).trim()}">${fmt(r.q4)}</td><td class="${L('d2',r.d2,true).trim()}">${fmt(r.d2)}</td><td class="${L('f',r.f,true).trim()}">${fmt(r.f)}</td>
     ${qcell('qStot',r.qStot,r.qNb,nQual,true)}${qcell('qH',r.qH,r.qHNb,nR16)}${qcell('qQ',r.qQ,r.qQNb,nQF)}${qcell('qD',r.qD,r.qDNb,nSF)}${qcell('qF',r.qF,r.qFNb,nFin)}${qcell('qV',r.qV,r.qVNb,nChamp)}</tr>`;
     if(clOpen.has(r.name))h+=`<tr class="detail-row"><td colspan="${COLS.length}">${playerDetailHTML(r.name)}</td></tr>`;});
   h+="</tbody>";const clt=document.getElementById("cl-table");clt.innerHTML=h;
