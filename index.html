@@ -152,6 +152,8 @@
   .qual-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
   .qual-col{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
   .qual-col h3{margin:0;padding:12px 14px;background:var(--panel2);border-bottom:1px solid var(--line);font-size:15px}
+  .qual-col.sim{border-color:var(--boost)}
+  .qual-col.sim h3{color:var(--boost);background:rgba(255,176,46,.1)}
   .qual-col .winner{padding:10px 14px;background:rgba(255,213,74,.08);border-bottom:1px solid var(--line);font-size:13px}
   .qual-col .winner b{color:var(--gold);font-size:15px}
   .round{padding:10px 14px;border-bottom:1px solid var(--line)}.round:last-child{border-bottom:none}
@@ -663,7 +665,7 @@ function setSim(on){simOn=on;
   if(on&&!has)SIM_PLAYERS.forEach(p=>ALL_PLAYERS.push(p));
   else if(!on&&has){for(let i=ALL_PLAYERS.length-1;i>=0;i--)if(ALL_PLAYERS[i].sim)ALL_PLAYERS.splice(i,1);}
   const b=document.getElementById("sim-btn");if(b)b.classList.toggle("active",simOn);
-  renderClassement();renderDashboard();
+  renderClassement();renderDashboard();if(document.getElementById("qual-grid"))renderQualif();
 }
 const TP_COLORS=['#39d98a','#4aa3ff','#ffb02e','#ff6b6b','#c77dff','#ffe14a','#ff7ac7'];
 function teamEvoChart(){
@@ -874,9 +876,9 @@ function renderQualif(){
   const grid=document.getElementById("qual-grid");
   const real=realQualif();const r16set=roundWinners('s16');
   const rdef=[["r16","Huitièmes","×3"],["qf","Quarts","×4"],["sf","Demies","×5"],["final","Finale","×6"]];
-  grid.innerHTML=TEAM.map(member=>{
-    const b=TEAM_BRACKETS[member.name];const fn=member.name.split(" ")[0];
-    let h=`<div class="qual-col"><h3>${fn}</h3>`;
+  grid.innerHTML=dashRoster().map(member=>{
+    const b=TEAM_BRACKETS[member.name]||ALL_BRACKETS[member.name];const fn=dispFn(member);
+    let h=`<div class="qual-col${member.sim?' sim':''}"><h3>${fn}</h3>`;
     if(b)h+=`<div class="winner">🏆 Vainqueur pronostiqué : <b>${b.winner}</b></div>`;
     // Seizièmes : bracket du joueur (place exacte de chaque équipe) + surbrillance des bons
     const POSL={'1':'1er','2':'2e','3':'meilleur 3e'};
