@@ -169,6 +169,7 @@
   .sheet-status{color:var(--muted);font-size:12px}
   .btn-evo{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:7px 11px;font-size:13px;font-weight:600;cursor:pointer}
   .btn-evo:hover{border-color:var(--accent2)}
+  .btn-evo.active{background:var(--accent2);border-color:var(--accent2);color:#06131f}
   .tpevo-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:10px}
   .tplegendrow{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;font-size:12px}
   .tpleg{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;cursor:pointer;padding:2px 6px;border-radius:6px;border:1px solid transparent}
@@ -217,9 +218,10 @@
   <div class="view active" id="view-classement">
     <div class="card">
       <div class="card-h"><strong>🏆 Classement live</strong> <span class="sub" id="cl-sub"></span></div>
-      <div class="controls"><label>Afficher :</label><div class="seg" id="cl-filter">
+      <div class="controls"><div class="seg" id="cl-filter">
         <button data-f="all">Tous</button><button data-f="team" class="active">Team Patates</button></div>
-        <button id="tp-evo-btn" class="btn-evo" style="display:none">📈 Rangs</button></div>
+        <button id="tp-evo-btn" class="btn-evo" style="display:none">📈 Rangs</button>
+        <button id="sim-btn" class="btn-evo" title="Ajouter/retirer 3 joueurs fictifs de simulation (Aucun risque · Risque Max · Match nul)">🤖</button></div>
       <div id="tp-evo-wrap"></div>
       <div class="cl-scroll"><table class="cl" id="cl-table"></table></div>
     </div>
@@ -272,6 +274,7 @@ let clFilter='team', clSearch='';
 let clSort={key:'total',dir:-1};
 let clOpen=new Set();
 let tpEvoOpen=false,tpSel=null;
+let simOn=false,SIM_PLAYERS=null;
 function setSort(k){if(clSort.key===k)clSort.dir*=-1;else clSort={key:k,dir:(k==='name'||k==='rank')?1:-1};renderClassement();}
 const PLAYERS = DATA.players;
 const R32_MATCHES=[{"num":73,"date":"2026-06-28T21:00:00","home":"Afrique du Sud","away":"Canada","c1":6.0,"cN":3.7,"c2":1.7},{"num":74,"date":"2026-06-29T19:00:00","home":"Brésil","away":"Japon","c1":1.7,"cN":4.0,"c2":5.0},{"num":75,"date":"2026-06-29T22:30:00","home":"Allemagne","away":"Paraguay","c1":1.4,"cN":5.2,"c2":9.5},{"num":76,"date":"2026-06-30T03:00:00","home":"Pays-Bas","away":"Maroc","c1":2.2,"cN":3.2,"c2":3.8},{"num":77,"date":"2026-06-30T19:00:00","home":"Côte d'Ivoire","away":"Norvège","c1":3.6,"cN":3.6,"c2":2.1},{"num":78,"date":"2026-06-30T23:00:00","home":"France","away":"Suède","c1":1.3,"cN":6.1,"c2":12.0},{"num":79,"date":"2026-07-01T03:00:00","home":"Mexique","away":"Équateur","c1":2.2,"cN":3.1,"c2":3.9},{"num":80,"date":"2026-07-01T18:00:00","home":"Angleterre","away":"RD Congo","c1":1.3,"cN":5.5,"c2":11.0},{"num":81,"date":"2026-07-01T22:00:00","home":"Belgique","away":"Sénégal","c1":2.1,"cN":3.3,"c2":3.8},{"num":82,"date":"2026-07-02T02:00:00","home":"Etats Unis","away":"Bosnie Herzégovine","c1":1.4,"cN":5.1,"c2":9.0},{"num":83,"date":"2026-07-02T21:00:00","home":"Espagne","away":"Autriche","c1":1.3,"cN":5.2,"c2":11.0},{"num":84,"date":"2026-07-03T01:00:00","home":"Portugal","away":"Croatie","c1":1.9,"cN":3.3,"c2":4.5},{"num":85,"date":"2026-07-03T05:00:00","home":"Suisse","away":"Algérie","c1":1.6,"cN":4.0,"c2":5.7},{"num":86,"date":"2026-07-03T20:00:00","home":"Australie","away":"Egypte","c1":3.3,"cN":3.0,"c2":2.5},{"num":87,"date":"2026-07-04T00:00:00","home":"Argentine","away":"Cap Vert","c1":1.1,"cN":8.2,"c2":22.0},{"num":88,"date":"2026-07-04T03:30:00","home":"Colombie","away":"Ghana","c1":1.8,"cN":3.5,"c2":5.2}];
@@ -498,8 +501,7 @@ function renderClassement(){
   const ctxPrev=qctxOf(resPrev);const prevT={};ALL_PLAYERS.forEach(p=>{prevT[p.name]=playerTotalAsOf(p,resPrev,ctxPrev);});
   all.forEach(r=>{r.dayGain=Math.round((r.total-prevT[r.name])*10)/10;});
   const byPrev=[...all].sort((a,b)=>prevT[b.name]-prevT[a.name]);const PR={};byPrev.forEach((r,i)=>PR[r.name]=i+1);all.forEach(r=>{r.dRank=PR[r.name]-r.rank;});
-  const played=Math.max(0,...all.map(r=>r.played));
-  document.getElementById("cl-sub").textContent=played?`· ${played} match(s) joué(s) · ${all.length} participants`:`· ${all.length} participants`;
+  document.getElementById("cl-sub").textContent=`· ${all.length} participants`;
   let rows=all;
   if(clFilter==="team") rows=rows.filter(r=>r.isTeam);
   if(clSearch) rows=rows.filter(r=>r.name.toLowerCase().includes(clSearch)||(r.team||"").toLowerCase().includes(clSearch));
@@ -611,6 +613,25 @@ function wireClFilter(){
     el.querySelectorAll("button").forEach(b=>b.onclick=()=>{clFilter=b.dataset.f;el.querySelectorAll("button").forEach(x=>x.classList.toggle("active",x===b));renderClassement();});}
   const s=document.getElementById("cl-search");if(s&&!s.dataset.wired){s.dataset.wired="1";s.oninput=()=>{clSearch=s.value.trim().toLowerCase();renderClassement();};}
   const eb=document.getElementById("tp-evo-btn");if(eb&&!eb.dataset.wired){eb.dataset.wired="1";eb.onclick=()=>{tpEvoOpen=!tpEvoOpen;renderTeamEvo();};}
+  const sb=document.getElementById("sim-btn");if(sb&&!sb.dataset.wired){sb.dataset.wired="1";sb.onclick=()=>setSim(!simOn);}
+}
+// 3 joueurs fictifs de simulation. Pronostics calculés sur les cotes de chaque match.
+function buildSimPlayers(){
+  const mk=(name,mode)=>{const preds={};MATCHES.forEach(m=>{
+    if(mode==='draw'){preds[m.num]=[0,0];return;}
+    const homeFav=m.c1<=m.c2;                 // équipe la plus probable = cote la plus basse
+    const homeWins=(mode==='fav')?homeFav:!homeFav;
+    preds[m.num]=homeWins?[1,0]:[0,1];});
+    return {name,team:'SIMULATION',isTeam:false,sim:true,boosts:[],preds};};
+  return [mk('Aucun risque','fav'),mk('Risque Max','under'),mk('Match nul','draw')];
+}
+function setSim(on){simOn=on;
+  if(!SIM_PLAYERS)SIM_PLAYERS=buildSimPlayers();
+  const has=ALL_PLAYERS.some(p=>p.sim);
+  if(on&&!has)SIM_PLAYERS.forEach(p=>ALL_PLAYERS.push(p));
+  else if(!on&&has){for(let i=ALL_PLAYERS.length-1;i>=0;i--)if(ALL_PLAYERS[i].sim)ALL_PLAYERS.splice(i,1);}
+  const b=document.getElementById("sim-btn");if(b)b.classList.toggle("active",simOn);
+  renderClassement();renderDashboard();
 }
 const TP_COLORS=['#39d98a','#4aa3ff','#ffb02e','#ff6b6b','#c77dff','#ffe14a','#ff7ac7'];
 function teamEvoChart(){
