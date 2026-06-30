@@ -60,6 +60,8 @@
   table.cl tr.team td.name{color:var(--accent2)}
   table.cl tr.sim td{background:rgba(255,176,46,.13)}
   table.cl tr.sim td.name{color:var(--boost)}
+  table.preds tr.sim td:first-child,table.daytbl tr.sim td.dn{color:var(--boost);font-weight:700}
+  table.preds tr.sim td,table.daytbl tr.sim td{background:rgba(255,176,46,.08)}
 
   /* Dashboard 2 colonnes */
   .dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}
@@ -303,6 +305,10 @@ function todayKeyPacific(){try{return new Date().toLocaleDateString("en-CA",{tim
 function lastActiveMD(){let r=null;for(const k of MDKEYS){if(MD[k].some(m=>hasResult(m.num)))r=k;}return r;}
 function pickMatchdays(){let current=null;for(const k of MDKEYS){if(MD[k].some(m=>!hasResult(m.num))){current=k;break;}}if(!current){const today=todayKeyPacific();current=MDKEYS.find(k=>k>=today)||MDKEYS[MDKEYS.length-1];}const ci=MDKEYS.indexOf(current);return{current,previous:ci>0?MDKEYS[ci-1]:null};}
 const TEAM=ALL_PLAYERS.filter(p=>p.isTeam).sort((a,b)=>a.name.localeCompare(b.name,'fr'));
+// Roster affiché dans les cartes match + tableau du jour : Team Patates, + les robots si activés.
+function dashRoster(){return simOn?TEAM.concat(SIM_PLAYERS||[]):TEAM;}
+// Libellé court : prénom pour la Team Patates, nom complet pour les robots.
+function dispFn(p){return p.sim?p.name:p.name.split(" ")[0];}
 function plOf(member,num){const pr=member.preds[num];if(!pr)return null;return {ph:pr[0],pa:pr[1],boost:member.boosts.indexOf(num)>=0};}
 const LS_KEY = "cdm2026_results_v3";
 const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS7kwoXRmS8yhbfIqO5J_FcGFd2FIV3KZUeJJ8aUyC1iNYUgWXzEIVgDq8YhoYDAVVGuUs3N73_KIwj/pub?gid=0&single=true&output=csv";
@@ -505,7 +511,7 @@ function renderClassement(){
   const byPrev=[...all].sort((a,b)=>prevT[b.name]-prevT[a.name]);const PR={};byPrev.forEach((r,i)=>PR[r.name]=i+1);all.forEach(r=>{r.dRank=PR[r.name]-r.rank;});
   document.getElementById("cl-sub").textContent=`· ${all.length} participants`;
   let rows=all;
-  if(clFilter==="team") rows=rows.filter(r=>r.isTeam);
+  if(clFilter==="team") rows=rows.filter(r=>r.isTeam||r.sim);
   if(clSearch) rows=rows.filter(r=>r.name.toLowerCase().includes(clSearch)||(r.team||"").toLowerCase().includes(clSearch));
   const sk=clSort.key,sdir=clSort.dir;
   rows=[...rows].sort((a,b)=>sk==='name'?sdir*a.name.localeCompare(b.name,'fr'):sdir*((a[sk]||0)-(b[sk]||0)));
@@ -696,15 +702,16 @@ function matchCardHTML(m,extraClass){
   let teamsHTML;
   if(has){const hc=ro==="1"?"won":"",ac=ro==="2"?"won":"";teamsHTML=`<span class="${hc}">${m.home}</span><span class="sc">${r.h} - ${r.a}</span><span class="${ac}">${m.away}</span>`;}
   else teamsHTML=`${m.home}<span class="vs">vs</span>${m.away}`;
-  const _pots=TEAM.map(mb=>{const pl=plOf(mb,m.num);return pl?gains(m,pl).exact:null;}).filter(x=>x!=null);
+  const roster=dashRoster();
+  const _pots=roster.map(mb=>{const pl=plOf(mb,m.num);return pl?gains(m,pl).exact:null;}).filter(x=>x!=null);
   const pmax=_pots.length?Math.max(..._pots):0,pmin=_pots.length?Math.min(..._pots):0,spread=pmax>pmin;
-  const predRows=TEAM.map(member=>{const pl=plOf(member,m.num);if(!pl)return"";const g=gains(m,pl),earned=pointsFor(m,pl);
+  const predRows=roster.map(member=>{const pl=plOf(member,m.num);if(!pl)return"";const g=gains(m,pl),earned=pointsFor(m,pl);
     const top=spread&&g.exact===pmax;
     let ec="—";if(earned!==null)ec=earned.pts>0?`<span class="earned win">${fmt(earned.pts)}${earned.exact?" ✓tout pile":""}</span>`:`<span class="earned zero">0${top?" 😭":""}</span>`;
-    const gx=pl.boost?"gain x2":"gain";const fn=member.name.split(" ")[0];
+    const gx=pl.boost?"gain x2":"gain";const fn=dispFn(member);
     const inten=spread?(g.exact-pmin)/(pmax-pmin):0;
     const heat=spread?`background:hsla(${Math.round(205-205*inten)},85%,55%,${(0.08+0.30*inten).toFixed(2)})`:"";
-    return `<tr><td>${fn}</td><td class="pred-score">${pl.ph} - ${pl.pa}${pl.boost?'<span class="boost">⚡</span>':''}</td><td>${fmt(g.cote)}</td><td class="${gx}">${fmt(g.bon)}</td><td class="${gx}" style="${heat}">${top?"<strong>":""}${fmt(g.exact)}${top?" 🔥</strong>":""}</td><td class="pt-cell">${ec}</td></tr>`;}).join("");
+    return `<tr class="${member.sim?'sim':''}"><td>${fn}</td><td class="pred-score">${pl.ph} - ${pl.pa}${pl.boost?'<span class="boost">⚡</span>':''}</td><td>${fmt(g.cote)}</td><td class="${gx}">${fmt(g.bon)}</td><td class="${gx}" style="${heat}">${top?"<strong>":""}${fmt(g.exact)}${top?" 🔥</strong>":""}</td><td class="pt-cell">${ec}</td></tr>`;}).join("");
   return `<div class="match ${extraClass||''}"><div class="m-top"><span class="m-num">#${m.num}</span><div><div class="teams">${teamsHTML}</div><span class="m-grp">${m.round==='s16'?'Seizièmes':'Groupe '+m.group}</span> · <span class="m-date">${dateLabel(m.date)}</span></div><span style="flex:1"></span>${scoreArea}<div class="odds">${oddCell("1",m.c1,"1")}${oddCell("N",m.cN,"N")}${oddCell("2",m.c2,"2")}</div></div>
     <table class="preds"><thead><tr><th>Joueur</th><th>Prono</th><th>Cote</th><th>Gain bon rés.</th><th>Gain possible</th><th>Points</th></tr></thead><tbody>${predRows}</tbody></table></div>`;
 }
@@ -748,9 +755,9 @@ function renderDayTable(idx){
   const el=document.getElementById("dash-rank");if(!el)return;
   const key=MDKEYS[idx],list=MD[key],nums=list.map(m=>m.num);
   const done=list.filter(m=>hasResult(m.num)).length;
-  let arr=TEAM.map(mb=>{let poss=0,eff=0,bons=0;
+  let arr=dashRoster().map(mb=>{let poss=0,eff=0,bons=0;
     nums.forEach(n=>{const pl=plOf(mb,n);if(!pl)return;poss+=gains(COTE[n],pl).exact;const e=pointsFor(COTE[n],pl);if(e&&e.pts){eff+=e.pts;bons++;}});
-    return {name:mb.name.split(" ")[0],poss,eff,bons};});
+    return {name:dispFn(mb),poss,eff,bons,sim:mb.sim};});
   if(done>0) arr.sort((a,b)=>b.eff-a.eff); else arr.sort((a,b)=>a.name.localeCompare(b.name,'fr'));
   const pmax=Math.max(...arr.map(a=>a.poss)),pmin=Math.min(...arr.map(a=>a.poss)),spread=pmax>pmin;
   let h=`<div class="card"><table class="daytbl"><thead><tr><th>Joueur</th><th>Gain possible</th><th>Bon prono</th><th class="hpts">Points</th></tr></thead><tbody>`;
@@ -760,7 +767,7 @@ function renderDayTable(idx){
     const bonsCell=done>0?a.bons:"—";
     let ptsCell="—";
     if(done>0){const z=a.eff<=0;ptsCell=`<span class="${z?'dz':''}">${z?(top?'0 😭':'0'):fmt(a.eff)}</span>`;}
-    h+=`<tr><td class="dn">${a.name}</td><td style="${heat}">${top?'<strong>':''}${fmt(a.poss)}${top?' 🔥</strong>':''}</td><td>${bonsCell}</td><td class="dpts">${ptsCell}</td></tr>`;});
+    h+=`<tr class="${a.sim?'sim':''}"><td class="dn">${a.name}</td><td style="${heat}">${top?'<strong>':''}${fmt(a.poss)}${top?' 🔥</strong>':''}</td><td>${bonsCell}</td><td class="dpts">${ptsCell}</td></tr>`;});
   h+=`</tbody></table></div>`;
   el.innerHTML=h;
 }
