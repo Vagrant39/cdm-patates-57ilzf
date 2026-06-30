@@ -58,6 +58,8 @@
   table.cl td.lead{color:var(--accent);font-weight:800}
   table.cl td.lag{color:#ff6b6b;font-weight:800}
   table.cl tr.team td.name{color:var(--accent2)}
+  table.cl tr.sim td{background:rgba(255,176,46,.13)}
+  table.cl tr.sim td.name{color:var(--boost)}
 
   /* Dashboard 2 colonnes */
   .dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}
@@ -485,7 +487,7 @@ function allStats(pl,lcNums,real,qsets){
         qV=qsets?qualPointsRound(pl,'winner',qsets.champ,7,5):z;
   const total=R(group+s16+h8+q4+d2+f+q.qS+q.qBonus+qH.pts+qQ.pts+qD.pts+qF.pts+qV.pts);
   const lastDayPts=ptsOnMatches(pl,lcNums||[]);const prevTotal=R(total-lastDayPts);
-  return{name:pl.name,team:pl.team,isTeam:pl.isTeam,total,group,bons,exacts,correct,played,fiab,maxm,cur,best,worst,lastDayPts,prevTotal,
+  return{name:pl.name,team:pl.team,isTeam:pl.isTeam,sim:pl.sim,total,group,bons,exacts,correct,played,fiab,maxm,cur,best,worst,lastDayPts,prevTotal,
     s16,h8,q4,d2,f,
     qStot:R(q.qS+q.qBonus),qNb:q.nb,qH:qH.pts,qHNb:qH.nb,qQ:qQ.pts,qQNb:qQ.nb,qD:qD.pts,qDNb:qD.nb,qF:qF.pts,qFNb:qF.nb,qV:qV.pts,qVNb:qV.nb,qBonus:q.qBonus};
 }
@@ -521,7 +523,7 @@ function renderClassement(){
   rows.forEach(r=>{const i=r.rank-1;const medal=i<3?`<span class="medal r${i+1}">${i+1}</span>`:`<span>${r.rank}</span>`;
     const L=(k,v,mp)=>isLead(k,v,mp)?' lead':(isLag(k,v)?' lag':'');
     const qcell=(k,val,nb,nset,sep)=>{const cls=[sep?'sep':'',L(k,val,true).trim()].filter(Boolean).join(' ');return `<td${cls?` class="${cls}"`:''}>${fmt(val)}${nset>0?` <span style="color:var(--muted)">(${nb}/${nset})</span>`:""}</td>`;};
-    h+=`<tr class="${r.isTeam?'team':''}"><td class="rank">${medal}${hasEvo?evo(r.dRank):""}</td><td class="name clickable" data-name="${r.name}">${r.name}${clOpen.has(r.name)?" ▾":""}</td><td class="pts${L('total',r.total,true)}">${fmt(r.total)}${hasEvo?` <span class="evo pts">(+${fmt(r.dayGain)})</span>`:""}</td><td class="${L('fiab',r.fiab,true).trim()}">${r.fiab}%</td>
+    h+=`<tr class="${r.isTeam?'team':(r.sim?'sim':'')}"><td class="rank">${medal}${hasEvo?evo(r.dRank):""}</td><td class="name clickable" data-name="${r.name}">${r.name}${clOpen.has(r.name)?" ▾":""}</td><td class="pts${L('total',r.total,true)}">${fmt(r.total)}${hasEvo?` <span class="evo pts">(+${fmt(r.dayGain)})</span>`:""}</td><td class="${L('fiab',r.fiab,true).trim()}">${r.fiab}%</td>
     <td class="${L('correct',r.correct,true).trim()}">${r.correct} <span style="color:var(--muted)">/ ${r.played}</span></td><td class="${L('exacts',r.exacts,true).trim()}">${r.exacts}</td><td class="${L('maxm',r.maxm,true).trim()}">${fmt(r.maxm)}</td><td class="${L('cur',r.cur,true).trim()}">${serie(r.cur)}</td><td class="${L('best',r.best,true).trim()}">${r.best}</td><td class="${L('worst',r.worst,false).trim()}">${r.worst}</td>
     <td class="sep${L('group',r.group,true)}">${fmt(r.group)}</td><td class="${L('s16',r.s16,true).trim()}">${fmt(r.s16)}</td><td class="${L('h8',r.h8,true).trim()}">${fmt(r.h8)}</td><td class="${L('q4',r.q4,true).trim()}">${fmt(r.q4)}</td><td class="${L('d2',r.d2,true).trim()}">${fmt(r.d2)}</td><td class="${L('f',r.f,true).trim()}">${fmt(r.f)}</td>
     ${qcell('qStot',r.qStot,r.qNb,nQual,true)}${qcell('qH',r.qH,r.qHNb,nR16)}${qcell('qQ',r.qQ,r.qQNb,nQF)}${qcell('qD',r.qD,r.qDNb,nSF)}${qcell('qF',r.qF,r.qFNb,nFin)}${qcell('qV',r.qV,r.qVNb,nChamp)}</tr>`;
@@ -615,6 +617,28 @@ function wireClFilter(){
   const eb=document.getElementById("tp-evo-btn");if(eb&&!eb.dataset.wired){eb.dataset.wired="1";eb.onclick=()=>{tpEvoOpen=!tpEvoOpen;renderTeamEvo();};}
   const sb=document.getElementById("sim-btn");if(sb&&!sb.dataset.wired){sb.dataset.wired="1";sb.onclick=()=>setSim(!simOn);}
 }
+// Force d'une équipe = cote de victoire finale (index 5 de QCOTES) : plus basse = plus forte.
+function simStrength(team){const c=QCOTES[team];return c?c[5]:1e9;}
+// Bracket de qualification d'un robot, déduit de SES pronostics + sa logique.
+// - Seizièmes (r32) : équipes qualifiées d'après ses scores de poules (predQualif),
+//   placées dans les cases dont la catégorie (SLOT_CAT 1/2/3) == place prédite (1er/2e/meilleur 3e).
+// - Tours suivants (8es→finale) : on simule l'arbre par paires adjacentes ; le vainqueur de
+//   chaque duel suit la logique du robot — favori (cote la plus basse) pour 'fav'/'draw',
+//   outsider (cote la plus haute) pour 'under'. ('draw' ne pouvant trancher un nul en KO,
+//   il prend le plus probable selon les cotes, comme demandé.)
+function buildSimBracket(pl,mode){
+  const real=predQualif(pl);                 // {pos, qualified} d'après les scores de poules du robot
+  const byCat={'1':[],'2':[],'3':[]};
+  real.qualified.forEach(t=>{const p=real.pos[t];const cat=p==='1'?'1':(p==='2'?'2':'3');byCat[cat].push(t);});
+  for(const k in byCat)byCat[k].sort((a,b)=>simStrength(a)-simStrength(b)||a.localeCompare(b,'fr'));
+  const idx={'1':0,'2':0,'3':0},r32=[];
+  for(let i=0;i<32;i++){const cat=SLOT_CAT[i];r32[i]=byCat[cat][idx[cat]++]||null;}
+  const pick=(a,b)=>{if(!a)return b;if(!b)return a;
+    return mode==='under'?(simStrength(a)>simStrength(b)?a:b):(simStrength(a)<simStrength(b)?a:b);};
+  const adv=arr=>{const o=[];for(let i=0;i<arr.length;i+=2)o.push(pick(arr[i],arr[i+1]));return o;};
+  const r16=adv(r32),qf=adv(r16),sf=adv(qf),final=adv(sf),winner=pick(final[0],final[1]);
+  return {r32:r32.filter(Boolean),r16:r16.filter(Boolean),qf:qf.filter(Boolean),sf:sf.filter(Boolean),final:final.filter(Boolean),winner};
+}
 // 3 joueurs fictifs de simulation. Pronostics calculés sur les cotes de chaque match.
 function buildSimPlayers(){
   const mk=(name,mode)=>{const preds={};MATCHES.forEach(m=>{
@@ -622,7 +646,9 @@ function buildSimPlayers(){
     const homeFav=m.c1<=m.c2;                 // équipe la plus probable = cote la plus basse
     const homeWins=(mode==='fav')?homeFav:!homeFav;
     preds[m.num]=homeWins?[1,0]:[0,1];});
-    return {name,team:'SIMULATION',isTeam:false,sim:true,boosts:[],preds};};
+    const p={name,team:'SIMULATION',isTeam:false,sim:true,boosts:[],preds};
+    ALL_BRACKETS[name]=buildSimBracket(p,mode);   // pronostic de qualification du robot
+    return p;};
   return [mk('Aucun risque','fav'),mk('Risque Max','under'),mk('Match nul','draw')];
 }
 function setSim(on){simOn=on;
