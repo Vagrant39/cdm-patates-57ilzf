@@ -818,7 +818,7 @@ function applyQSel(){const grid=document.getElementById("qual-grid");if(!grid)re
   grid.querySelectorAll(".chip[data-team]").forEach(c=>c.classList.toggle("sel",!!qSel&&c.dataset.team===qSel));}
 function renderQualif(){
   const grid=document.getElementById("qual-grid");
-  const real=realQualif();const r16set=r16Qualifiers();
+  const real=realQualif();const r16set=roundWinners('s16');
   const rdef=[["r16","Huitièmes","×3"],["qf","Quarts","×4"],["sf","Demies","×5"],["final","Finale","×6"]];
   grid.innerHTML=TEAM.map(member=>{
     const b=TEAM_BRACKETS[member.name];const fn=member.name.split(" ")[0];
