@@ -305,7 +305,7 @@ const SHEET_EDIT_URL = "https://docs.google.com/spreadsheets/d/1aaeCgdTISQ6GwuPD
 let sheetStatus = "";
 function updateSheetStatus(){document.querySelectorAll(".sheet-status").forEach(e=>e.textContent=sheetStatus);}
 function parseCSVLine(line){const out=[];let cur="",q=false;for(let i=0;i<line.length;i++){const c=line[i];if(q){if(c==='"'){if(line[i+1]==='"'){cur+='"';i++;}else q=false;}else cur+=c;}else{if(c==='"')q=true;else if(c===','){out.push(cur);cur="";}else cur+=c;}}out.push(cur);return out;}
-function resultsFromCSV(text){const lines=text.replace(/\r/g,"").split("\n").filter(l=>l.trim()!=="");const res={};for(let i=1;i<lines.length;i++){const f=parseCSVLine(lines[i]);const num=(f[0]||"").trim();const h=(f[5]||"").trim();const a=(f[6]||"").trim();if(num&&h!==""&&a!==""&&!isNaN(+h)&&!isNaN(+a))res[num]={h:+h,a:+a};}return res;}
+function resultsFromCSV(text){const lines=text.replace(/\r/g,"").split("\n").filter(l=>l.trim()!=="");const res={};for(let i=1;i<lines.length;i++){const f=parseCSVLine(lines[i]);const num=(f[0]||"").trim();const h=(f[5]||"").trim();const a=(f[6]||"").trim();const q=(f[7]||"").trim();if(num&&h!==""&&a!==""&&!isNaN(+h)&&!isNaN(+a)){res[num]={h:+h,a:+a};if(q)res[num].q=q;}}return res;}
 async function syncFromSheet(showAlert){
   try{
     const r=await fetch(SHEET_CSV_URL,{cache:"no-store"});
@@ -447,9 +447,13 @@ function matchResult(pl,n){if(!hasResult(n))return null;const pr=pl.preds[n];if(
   return {correct,exact,pts};}
 function ptsOnMatches(pl,nums){let s=0;for(const n of nums){const r=matchResult(pl,n);if(r)s+=r.pts;}return s;}
 // Vainqueurs des matchs d'un tour (équipes qui accèdent au tour suivant) — score décisif
-function roundWinners(tag,res){res=res||results;const s=new Set();MATCHES.forEach(m=>{if(m.round!==tag)return;const r=res[m.num];if(!r||r.h==null||r.h===''||r.a==null||r.a==='')return;const h=+r.h,a=+r.a;if(h>a)s.add(m.home);else if(a>h)s.add(m.away);});return s;}
+// Équipe qualifiée d'un match KO : colonne "Qualifié" du Sheet si renseignée (cas du nul), sinon vainqueur au score 90'
+function koWinner(m,r){if(!r||r.h==null||r.h===''||r.a==null||r.a==='')return null;
+  if(r.q){const q=(''+r.q).trim().toLowerCase();if((''+m.home).trim().toLowerCase()===q)return m.home;if((''+m.away).trim().toLowerCase()===q)return m.away;}
+  const h=+r.h,a=+r.a;return h>a?m.home:a>h?m.away:null;}
+function roundWinners(tag,res){res=res||results;const s=new Set();MATCHES.forEach(m=>{if(m.round!==tag)return;const w=koWinner(m,res[m.num]);if(w)s.add(w);});return s;}
 // Vainqueur de la Coupe = vainqueur du DERNIER match du tour "f" (la finale, pas le match 3e place)
-function championSet(res){res=res||results;const fm=MATCHES.filter(m=>m.round==='f'&&res[m.num]&&res[m.num].h!=null&&res[m.num].h!=='');if(!fm.length)return new Set();fm.sort((a,b)=>new Date(b.date)-new Date(a.date));const m=fm[0],r=res[m.num],h=+r.h,a=+r.a;const s=new Set();if(h>a)s.add(m.home);else if(a>h)s.add(m.away);return s;}
+function championSet(res){res=res||results;const fm=MATCHES.filter(m=>m.round==='f'&&res[m.num]&&res[m.num].h!=null&&res[m.num].h!=='');if(!fm.length)return new Set();fm.sort((a,b)=>new Date(b.date)-new Date(a.date));const m=fm[0];const w=koWinner(m,res[m.num]);const s=new Set();if(w)s.add(w);return s;}
 // Contexte qualif pour un sous-ensemble de résultats + total d'un joueur à cet instant (cohérent avec le graphe)
 function qctxOf(res){return {real:computeQualif(n=>res[n]&&res[n].h!=null&&res[n].h!==''?{h:+res[n].h,a:+res[n].a}:null,true,true),r16:roundWinners('s16',res),qf:roundWinners('h8',res),sf:roundWinners('q4',res),final:roundWinners('d2',res),champ:championSet(res)};}
 function playerTotalAsOf(pl,res,ctx){let m=0;
