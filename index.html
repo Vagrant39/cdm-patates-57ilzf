@@ -880,12 +880,16 @@ function applyQSel(){const grid=document.getElementById("qual-grid");if(!grid)re
   grid.querySelectorAll(".chip[data-team]").forEach(c=>c.classList.toggle("sel",!!qSel&&c.dataset.team===qSel));}
 function renderQualif(){
   const grid=document.getElementById("qual-grid");
-  const real=realQualif();const r16set=roundWinners('s16');
+  const real=realQualif();
+  // Équipes ayant réellement ATTEINT chaque tour = vainqueurs du tour précédent.
+  const reached={r16:roundWinners('s16'),qf:roundWinners('h8'),sf:roundWinners('q4'),final:roundWinners('d2')};
+  const champ=championSet();
+  const roundNoun={r16:'8es',qf:'quarts',sf:'demies',final:'finale'};
   const rdef=[["r16","Huitièmes","×3"],["qf","Quarts","×4"],["sf","Demies","×5"],["final","Finale","×6"]];
   grid.innerHTML=dashRoster().map(member=>{
     const b=TEAM_BRACKETS[member.name]||ALL_BRACKETS[member.name];const fn=dispFn(member);
     let h=`<div class="qual-col${member.sim?' sim':''}"><h3>${fn}</h3>`;
-    if(b)h+=`<div class="winner">🏆 Vainqueur pronostiqué : <b>${b.winner}</b></div>`;
+    if(b){const wok=b.winner&&champ.has(b.winner);h+=`<div class="winner${wok?' qok':''}">🏆 Vainqueur pronostiqué : <b>${b.winner}</b>${wok?' ✓':''}</div>`;}
     // Seizièmes : bracket du joueur (place exacte de chaque équipe) + surbrillance des bons
     const POSL={'1':'1er','2':'2e','3':'meilleur 3e'};
     const br=ALL_BRACKETS[member.name],r32=br&&br.r32?br.r32:[];
@@ -900,10 +904,10 @@ function renderQualif(){
     if(nbQ>0||real.allDone)h+=`<div class="qsum">✅ ${nbQ} qualifié(s) trouvé(s) · 🎯 ${nbBonus} en bonne position</div>`;
     else h+=`<div class="qsum" style="color:var(--muted)">En attente de la fin des poules pour les qualifiés.</div>`;
     h+=`</div>`;
-    if(b)rdef.forEach(([k,lbl,mult])=>{const teams=b[k]||[];const ci={r16:1,qf:2,sf:3,final:4}[k];let nq=0;
-      const chh=teams.map(t=>{const c=QCOTES[t]?QCOTES[t][ci]:null;const q=k==='r16'&&r16set.has(t);if(q)nq++;
+    if(b)rdef.forEach(([k,lbl,mult])=>{const teams=b[k]||[];const ci={r16:1,qf:2,sf:3,final:4}[k];const rset=reached[k];let nq=0;
+      const chh=teams.map(t=>{const c=QCOTES[t]?QCOTES[t][ci]:null;const q=rset.has(t);if(q)nq++;
         return `<span class="chip ${q?'qok':''}" data-team="${t}">${t}${c!=null?`<span class="ccote" title="cote de qualification">${fmt(c)}</span>`:""}${q?' ✓':''}</span>`;}).join("");
-      h+=`<div class="round"><div class="rh"><span>${lbl} <span style="color:var(--muted)">(${teams.length})</span></span><span class="mult">${mult} cote</span></div><div class="chips">${chh}</div>${k==='r16'&&(nq>0||r16set.size>0)?`<div class="qsum">✅ ${nq} qualifié(s) en 8es trouvé(s)</div>`:''}</div>`;});
+      h+=`<div class="round"><div class="rh"><span>${lbl} <span style="color:var(--muted)">(${teams.length})</span></span><span class="mult">${mult} cote</span></div><div class="chips">${chh}</div>${(nq>0||rset.size>0)?`<div class="qsum">✅ ${nq} qualifié(s) en ${roundNoun[k]} trouvé(s)</div>`:''}</div>`;});
     return h+`</div>`;}).join("");
   if(!grid.dataset.wired){grid.dataset.wired="1";grid.addEventListener("click",e=>{const c=e.target.closest(".chip[data-team]");if(!c)return;qSel=(qSel===c.dataset.team)?null:c.dataset.team;applyQSel();});}
   applyQSel();
