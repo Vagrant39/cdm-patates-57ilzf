@@ -227,7 +227,7 @@
       <div class="controls"><div class="seg" id="cl-filter">
         <button data-f="all">Tous</button><button data-f="team" class="active">Team Patates</button></div>
         <button id="tp-evo-btn" class="btn-evo" style="display:none">📈 Rangs</button>
-        <button id="sim-btn" class="btn-evo" title="Ajouter/retirer 3 joueurs fictifs de simulation (Aucun risque · Risque Max · Match nul)">🤖</button></div>
+        <button id="sim-btn" class="btn-evo" title="Ajouter/retirer 4 joueurs fictifs de simulation (Aucun risque · Risque Max · Match nul · Match nul 1-1)">🤖</button></div>
       <div id="tp-evo-wrap"></div>
       <div class="cl-scroll"><table class="cl" id="cl-table"></table></div>
     </div>
@@ -653,17 +653,18 @@ function buildSimBracket(pl,mode){
   const r16=adv(r32),qf=adv(r16),sf=adv(qf),final=adv(sf),winner=pick(final[0],final[1]);
   return {r32:r32.filter(Boolean),r16:r16.filter(Boolean),qf:qf.filter(Boolean),sf:sf.filter(Boolean),final:final.filter(Boolean),winner};
 }
-// 3 joueurs fictifs de simulation. Pronostics calculés sur les cotes de chaque match.
+// 4 joueurs fictifs de simulation. Pronostics calculés sur les cotes de chaque match.
 function buildSimPlayers(){
   const mk=(name,mode)=>{const preds={};MATCHES.forEach(m=>{
     if(mode==='draw'){preds[m.num]=[0,0];return;}
+    if(mode==='draw11'){preds[m.num]=[1,1];return;}
     const homeFav=m.c1<=m.c2;                 // équipe la plus probable = cote la plus basse
     const homeWins=(mode==='fav')?homeFav:!homeFav;
     preds[m.num]=homeWins?[1,0]:[0,1];});
     const p={name,team:'SIMULATION',isTeam:false,sim:true,boosts:[],preds};
     ALL_BRACKETS[name]=buildSimBracket(p,mode);   // pronostic de qualification du robot
     return p;};
-  return [mk('Aucun risque','fav'),mk('Risque Max','under'),mk('Match nul','draw')];
+  return [mk('Aucun risque','fav'),mk('Risque Max','under'),mk('Match nul','draw'),mk('Match nul 1-1','draw11')];
 }
 function setSim(on){simOn=on;
   if(!SIM_PLAYERS)SIM_PLAYERS=buildSimPlayers();
