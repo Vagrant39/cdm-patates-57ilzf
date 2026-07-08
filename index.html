@@ -293,6 +293,11 @@ const H8_PREDS={"Ad9Performance":{"89":[1,1],"90":[1,3],"91":[2,0],"92":[0,1],"9
 H8_MATCHES.forEach(m=>m.round='h8');
 DATA.matches=DATA.matches.concat(H8_MATCHES);
 ALL_PLAYERS.forEach(p=>{const rp=H8_PREDS[p.name];if(rp)for(const k in rp)p.preds[k]=rp[k];});
+const Q4_MATCHES=[{"num":97,"date":"2026-07-09T22:00:00","home":"France","away":"Maroc","c1":1.6,"cN":4,"c2":6.3},{"num":98,"date":"2026-07-10T21:00:00","home":"Espagne","away":"Belgique","c1":1.6,"cN":4.2,"c2":5.8},{"num":99,"date":"2026-07-11T23:00:00","home":"Norvège","away":"Angleterre","c1":3.9,"cN":3.9,"c2":1.9},{"num":100,"date":"2026-07-12T03:00:00","home":"Argentine","away":"Suisse","c1":1.7,"cN":3.7,"c2":5.4}];
+const Q4_PREDS={};
+Q4_MATCHES.forEach(m=>m.round='q4');
+DATA.matches=DATA.matches.concat(Q4_MATCHES);
+ALL_PLAYERS.forEach(p=>{const rp=Q4_PREDS[p.name];if(rp)for(const k in rp)p.preds[k]=rp[k];});
 const MATCHES = DATA.matches;
 const COTE={};MATCHES.forEach(m=>COTE[m.num]=m);
 const S16NUMS=MATCHES.filter(m=>m.round==='s16').map(m=>m.num);
