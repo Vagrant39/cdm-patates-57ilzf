@@ -487,7 +487,13 @@ function koWinner(m,r){if(!r||r.h==null||r.h===''||r.a==null||r.a==='')return nu
   const h=+r.h,a=+r.a;return h>a?m.home:a>h?m.away:null;}
 function roundWinners(tag,res){res=res||results;const s=new Set();MATCHES.forEach(m=>{if(m.round!==tag)return;const w=koWinner(m,res[m.num]);if(w)s.add(w);});return s;}
 // Vainqueur de la Coupe = vainqueur du DERNIER match du tour "f" (la finale, pas le match 3e place)
-function championSet(res){res=res||results;const fm=MATCHES.filter(m=>m.round==='f'&&res[m.num]&&res[m.num].h!=null&&res[m.num].h!=='');if(!fm.length)return new Set();fm.sort((a,b)=>new Date(b.date)-new Date(a.date));const m=fm[0];const w=koWinner(m,res[m.num]);const s=new Set();if(w)s.add(w);return s;}
+// Vainqueur de la Coupe = vainqueur de la FINALE = le match 'f' le plus tardif (le match pour la 3e place
+// se joue AVANT la finale). On ne compte un champion que si la finale elle-même a un résultat : le vainqueur
+// du match de 3e place ne doit JAMAIS être pris pour le champion.
+function championSet(res){res=res||results;const fm=MATCHES.filter(m=>m.round==='f');if(!fm.length)return new Set();
+  fm.sort((a,b)=>new Date(b.date)-new Date(a.date)||b.num-a.num);const m=fm[0];const r=res[m.num];
+  if(!r||r.h==null||r.h===''||r.a==null||r.a==='')return new Set();
+  const w=koWinner(m,r);const s=new Set();if(w)s.add(w);return s;}
 // Contexte qualif pour un sous-ensemble de résultats + total d'un joueur à cet instant (cohérent avec le graphe)
 function qctxOf(res){return {real:computeQualif(n=>res[n]&&res[n].h!=null&&res[n].h!==''?{h:+res[n].h,a:+res[n].a}:null,true,true),r16:roundWinners('s16',res),qf:roundWinners('h8',res),sf:roundWinners('q4',res),final:roundWinners('d2',res),champ:championSet(res)};}
 function playerTotalAsOf(pl,res,ctx){let m=0;
@@ -575,7 +581,7 @@ function playerProgress(name){
     nums.forEach(n=>{if(hasResult(n))resAcc[n]=results[n];});
     ALL_PLAYERS.forEach(p=>{cumM[p.name]+=ptsOnMatches(p,nums);});
     const realD=computeQualif(n=>resAcc[n]?{h:+resAcc[n].h,a:+resAcc[n].a}:null,true,true);
-    const r16D=roundWinners('s16',resAcc),qfD=roundWinners('h8',resAcc),sfD=roundWinners('q4',resAcc),fnD=roundWinners('d2',resAcc),chD=roundWinners('f',resAcc);
+    const r16D=roundWinners('s16',resAcc),qfD=roundWinners('h8',resAcc),sfD=roundWinners('q4',resAcc),fnD=roundWinners('d2',resAcc),chD=championSet(resAcc);
     const tot={};ALL_PLAYERS.forEach(p=>{const q=qualPointsR32(p,realD);
       tot[p.name]=cumM[p.name]+q.qS+q.qBonus+qualPointsRound(p,'r16',r16D,3,1).pts+qualPointsRound(p,'qf',qfD,4,2).pts+qualPointsRound(p,'sf',sfD,5,3).pts+qualPointsRound(p,'final',fnD,6,4).pts+qualPointsRound(p,'winner',chD,7,5).pts;});
     const meTot=tot[name];let rank=1;ALL_PLAYERS.forEach(p=>{if(tot[p.name]>meTot)rank++;});
